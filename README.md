@@ -250,3 +250,11 @@ them any more.
 7. ⬜ Cab-side FOG/MSG/LED reporting — flash `MineGuard.ino`
 8. ⬜ HC-05 Bluetooth pairing (Windows COM port) — bridge ready
 9. ⬜ Speed/TTC — needs a real speed source (encoder / UWB), then code can change
+
+## Hosting (GitHub) — 24/7 online
+
+- **Repository:** https://github.com/shahdivy67-cell/mineguard (public; source of truth for server, bridge, dashboard, firmware and the honesty test suites)
+- **Always-online read-only dashboard:** https://shahdivy67-cell.github.io/mineguard/ — the root URL instantly redirects to the **uninteractable** view link (`/view/BRVmiLzctt5y/`), so any link you share can be watched but never controlled. Rebuilt and republished automatically by `.github/workflows/pages.yml` on every push to `main`.
+- **Honest by design on static hosting:** with no live server configured the page says exactly that — *"Static demo page — no live MineGuard server configured. All values stay honest: No data."* It never invents distances, obstacles or TTC.
+- **Privacy:** `data/` (all telemetry), `SHARE-LINK.txt` (share token), `node_modules/`, build output and PID files are gitignored — sensor data and tokens never leave your machine via Git.
+- **Want live Arduino data on the public page?** GitHub cannot plug into a serial port — the bridge must keep running on the PC the Arduino is connected to. Expose that server over public HTTPS (e.g. a free Cloudflare Tunnel) and set the repository secret `VITE_API_BASE` to its URL; the next push rebuilds the page so it feeds from the real rig 24/7.
