@@ -1,0 +1,14 @@
+{
+  "name": "mineguard-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MineGuard backend: real Arduino telemetry ingest, real-data risk engine, fog gate, events, read-only share links",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0",
+    "ws": "^8.18.0"
+  }
+}

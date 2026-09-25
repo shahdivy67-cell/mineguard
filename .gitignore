@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# build output (built by GitHub Actions for Pages)
+dashboard/dist/
+
+# live telemetry — NEVER publish sensor data or server state
+data/
+
+# share token — keep out of the public repo
+SHARE-LINK.txt
+
+# logs / runtime / os
+*.log
+*.pid
+Thumbs.db
+.DS_Store

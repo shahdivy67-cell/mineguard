@@ -1,0 +1,6 @@
+{
+  "arduino.useArduinoCli": true,
+  "arduino.path": "C:\\Users\\DIVY\\arduino-cli",
+  "arduino.commandPath": "arduino-cli.exe",
+  "arduino.logLevel": "info"
+}

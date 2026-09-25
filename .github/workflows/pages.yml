@@ -1,0 +1,65 @@
+# Publishes the dashboard to GitHub Pages (always-online, view-only link).
+# The static page shows honest "No data / Disconnected" unless VITE_API_BASE
+# is provided at build time pointing at a real MineGuard server — this repo
+# never fabricates readings.
+name: Deploy dashboard to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Build dashboard (static, read-only link)
+        working-directory: dashboard
+        env:
+          # Optional: a public HTTPS MineGuard server that has the Arduino on
+          # its serial port. Leave empty for a pure honest static page.
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+        run: |
+          npm ci
+          npm run build -- --base=/${{ github.event.repository.name }}/
+          # SPA fallback: /<repo>/view/<token>/ must load the app
+          cp dist/index.html dist/404.html
+          # Root of the site = the UNINTERACTABLE view-only link
+          cat > dist/index.html <<'EOF'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>MineSafe 360* — MineGuard Control Room</title>
+          <script>location.replace("./view/BRVmiLzctt5y/");</script>
+          <noscript>Open <a href="./view/BRVmiLzctt5y/">the read-only dashboard</a>.</noscript>
+          EOF
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

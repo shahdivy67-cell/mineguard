@@ -1,0 +1,446 @@
+:root {
+  --bg: #0b0e13;
+  --panel: #141922;
+  --panel2: #1a212d;
+  --line: #263041;
+  --text: #d7e0ee;
+  --muted: #8592a6;
+  --ok: #35c26a;
+  --warn: #e8a33d;
+  --bad: #ef5350;
+  --accent: #409cff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Top bar */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 18px;
+  background: linear-gradient(180deg, #121722, #0e121a);
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+.brand .logo { margin-right: 6px; }
+.muted { color: var(--muted); font-weight: 400; font-size: 13px; letter-spacing: 1px; }
+.topbar-right { display: flex; gap: 10px; align-items: center; }
+
+.pill {
+  font-size: 12px; padding: 5px 10px; border-radius: 20px;
+  background: var(--panel2); border: 1px solid var(--line); letter-spacing: 1px;
+}
+.pill-ok { color: var(--ok); border-color: rgba(53,194,106,.5); }
+.pill-bad { color: var(--bad); border-color: rgba(239,83,80,.6); animation: blink 1.2s infinite; }
+.pill-fog { color: #cfd8ea; background: #39445c; }
+@keyframes blink { 50% { opacity: .45; } }
+
+.btn {
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn-warn { border-color: rgba(232,163,61,.6); color: var(--warn); }
+.btn-small { padding: 4px 9px; font-size: 12px; }
+
+.loading { padding: 40px; text-align: center; color: var(--muted); }
+
+/* Layout */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  grid-template-areas: "mine side" "events side";
+  gap: 14px; padding: 14px;
+}
+.mine-panel { grid-area: mine; }
+.side { grid-area: side; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.events-panel { grid-area: events; }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; overflow: hidden;
+}
+.panel-title {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; font-size: 13px; letter-spacing: 2px;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.pad { padding: 16px; }
+
+/* Digital mine */
+.mine-wrap { position: relative; background: #0d1117; }
+.mine-svg { display: block; width: 100%; height: auto; }
+.mine-3d { height: 54vh; min-height: 360px; background: #0d1117; }
+.mine-3d canvas { display: block; }
+.view-toggle { margin-left: auto; display: flex; gap: 6px; }
+.view-toggle .btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* Buttons */
+.btn.active { border-color: var(--accent); color: var(--accent); background: rgba(64,156,255,.12); }
+.btn-export { border-color: rgba(64,156,255,.55); color: var(--accent); font-weight: 600; }
+
+/* Fog intensity meter */
+.fog-meter { padding: 16px 16px 8px; }
+.fog-meter-value { font-size: 46px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.fog-meter-value .pct { font-size: 22px; color: var(--muted); margin-left: 3px; }
+.fog-meter-value em { display: block; font-style: normal; font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-top: 7px; }
+.meter {
+  position: relative; height: 18px; margin-top: 14px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 9px;
+}
+.meter-fill {
+  height: 100%; border-radius: 9px; transition: width .2s;
+  background: linear-gradient(90deg, #35c26a, #e8a33d 55%, #ef5350);
+}
+.meter-needle {
+  position: absolute; top: -5px; width: 4px; height: 28px;
+  background: #fff; border-radius: 2px; transform: translateX(-2px);
+  box-shadow: 0 0 8px rgba(255,255,255,.85); transition: left .2s;
+}
+.meter-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-top: 6px; }
+.fog-controls { display: flex; gap: 10px; align-items: center; padding: 8px 16px 16px; }
+.fog-controls input[type="range"] { flex: 1; accent-color: var(--accent); height: 6px; }
+
+/* Pulsing vehicle ring on the 2D mine */
+.pulse-ring { stroke-width: 0.4; animation: ringpulse 1.6s ease-out infinite; }
+@keyframes ringpulse {
+  0% { opacity: .95; stroke-width: 0.4; }
+  100% { opacity: 0; stroke-width: 0.05; }
+}
+.fog-layer { animation: fogdrift 6s ease-in-out infinite alternate; }
+@keyframes fogdrift { from { opacity: .75; } to { opacity: 1; } }
+.fog-on .mine-svg { filter: saturate(.7); }
+
+.sim-controls {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px;
+}
+
+/* Risk / comm badges */
+.risk-badge, .comm-badge {
+  font-size: 15px; font-weight: 800; padding: 6px 16px; border-radius: 6px; letter-spacing: 1.5px;
+}
+.risk-badge.safe { background: rgba(53,194,106,.15); color: var(--ok); box-shadow: 0 0 12px rgba(53,194,106,.25); }
+.risk-badge.caution { background: rgba(232,163,61,.15); color: var(--warn); box-shadow: 0 0 12px rgba(232,163,61,.3); }
+.risk-badge.danger { background: rgba(239,83,80,.18); color: var(--bad); animation: blink 1s infinite; box-shadow: 0 0 14px rgba(239,83,80,.4); }
+.comm-badge { font-size: 13px; padding: 5px 12px; }
+.comm-badge.ok { background: rgba(53,194,106,.12); color: var(--ok); }
+.comm-badge.bad { background: rgba(239,83,80,.18); color: var(--bad); animation: blink 1s infinite; }
+
+/* Cards */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+.card {
+  background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px;
+}
+.card-label { font-size: 12px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; }
+.card-value { font-size: 27px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.card-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.tone-ok .card-value { color: var(--ok); }
+.tone-warn .card-value { color: var(--warn); }
+.tone-bad .card-value { color: var(--bad); }
+
+/* Risk factors */
+.factors { list-style: none; margin: 0; padding: 10px 14px; font-size: 13px; }
+.factors li { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+.factors li em { margin-left: auto; font-style: normal; color: var(--muted); }
+.factor-ok { color: var(--ok); }
+.factor-warn { color: var(--warn); }
+.factor-bad { color: var(--bad); }
+
+/* Safety score */
+.score { margin-left: auto; font-weight: 700; color: var(--text); letter-spacing: 0; }
+.score-bar { height: 8px; background: var(--panel2); border-radius: 5px; margin: 10px 14px 6px; overflow: hidden; }
+.score-fill { height: 100%; transition: width .5s; }
+.score-fill.ok { background: var(--ok); }
+.score-fill.warn { background: var(--warn); }
+.score-fill.bad { background: var(--bad); }
+.reasons { list-style: none; margin: 0; padding: 6px 14px 12px; font-size: 12px; max-height: 180px; overflow-y: auto; }
+.reasons li { display: flex; gap: 8px; padding: 3px 0; color: var(--muted); }
+.reasons li em { margin-left: auto; font-style: normal; font-size: 11px; }
+.reasons li.neg span { color: var(--bad); min-width: 26px; }
+.reasons li.pos span { color: var(--ok); min-width: 26px; }
+.reasons li span { color: var(--muted); min-width: 26px; }
+
+/* Events */
+.events { list-style: none; margin: 0; padding: 8px; max-height: 260px; overflow-y: auto; }
+.events li {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 9px 12px; margin-bottom: 6px; border-radius: 7px;
+  background: var(--panel2); border-left: 4px solid var(--muted); font-size: 13px;
+}
+.events .ev-info { border-left-color: var(--accent); }
+.events .ev-warning { border-left-color: var(--warn); }
+.events .ev-danger { border-left-color: var(--bad); }
+.events .ev-acknowledged, .events .ev-resolved { opacity: .6; }
+.ev-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; grid-template-areas: "mine" "side" "events"; }
+}
+
+/* ------------------- V2: fleet, AI cab alerts, E-Stop, big screen -------- */
+.cab-alert {
+  display: flex; align-items: center; gap: 14px;
+  margin: 12px 14px 0; padding: 12px 16px;
+  border-radius: 8px; font-size: 14px;
+}
+.cab-alert.danger {
+  background: rgba(239,83,80,.15); border: 1px solid rgba(239,83,80,.65);
+  color: #ffb3b0; animation: blink 1s infinite;
+}
+.cab-alert.caution {
+  background: rgba(232,163,61,.12); border: 1px solid rgba(232,163,61,.55);
+  color: var(--warn);
+}
+.cab-alert em { margin-left: auto; font-style: normal; color: var(--muted); font-size: 12px; }
+
+.fleet { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.fleet li {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 7px;
+  cursor: pointer; font-size: 13px; transition: border-color .15s;
+}
+.fleet li:hover { border-color: rgba(64,156,255,.5); }
+.fleet li.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(64,156,255,.35); }
+.fleet li.estop { border-color: var(--bad); background: rgba(239,83,80,.08); }
+.fleet .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.fleet .dot.green { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.fleet .dot.yellow { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+.fleet .dot.red { background: var(--bad); box-shadow: 0 0 6px var(--bad); animation: blink .8s infinite; }
+.fleet .mv { color: var(--muted); font-size: 12px; min-width: 96px; }
+.fleet .mini { margin-left: auto; color: var(--muted); font-size: 11px; }
+.fleet .mini + .mini { margin-left: 0; }
+.fleet .mini.ok { color: var(--ok); }
+.fleet .mini.bad { color: var(--bad); animation: blink 1s infinite; }
+.estop-tag {
+  background: var(--bad); color: #fff; font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px;
+}
+.alert-tag { font-size: 13px; }
+
+.fleet-strip { margin: 12px 14px 0; }
+.fleet-strip .fleet { flex-direction: row; flex-wrap: wrap; }
+.fleet-strip .fleet li { flex: 1 1 230px; }
+
+.estop-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin: 10px -12px -12px; padding: 10px 14px;
+  background: rgba(239,83,80,.14); border-top: 1px solid rgba(239,83,80,.5);
+  border-radius: 0 0 7px 7px; color: #ffb3b0; font-weight: 700; font-size: 13px;
+}
+.estop-bar .btn { margin-left: auto; }
+
+.v-flash { animation: vflash .55s step-end infinite; }
+@keyframes vflash { 50% { opacity: .15; } }
+
+/* Big control-room screen (put the browser on the wall OLED — press F11) */
+.layout.big { grid-template-columns: 1fr; grid-template-areas: "mine"; }
+.layout.big .side, .layout.big .events-panel { display: none; }
+.layout.big .mine-panel { height: calc(100vh - 170px); }
+.layout.big .mine-3d { height: calc(100vh - 290px); }
+.layout.big .panel-title { font-size: 17px; }
+
+/* Emergency message to the truck (controller-only block under the map) */
+.msg-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; width: 100%;
+}
+.msg-controls input {
+  flex: 1; min-width: 220px; background: #0e1116; border: 1px solid #2a303c;
+  color: #eaf2ff; border-radius: 6px; padding: 6px 9px; font: inherit;
+}
+.msg-controls input:focus { outline: 1px solid #409cff; }
+.msg-status { font-size: 12px; font-weight: 700; }
+.msg-status.ok { color: #35c26a; }
+.msg-status.wait { color: #ffc857; }
+
+/* ================= real-hardware dashboard additions ==================== */
+.risk-badge.nodata { background: rgba(160,170,190,.15); color: #a8b2c6; }
+
+.pad-sm { padding: 0 16px 14px; font-size: 12px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
+/* big honest distance readout */
+.distance-hero { display: flex; align-items: center; gap: 22px; padding: 16px 16px 6px; flex-wrap: wrap; }
+.distance-value { font-size: 64px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); letter-spacing: -1px; }
+.distance-value .unit { font-size: 24px; font-weight: 700; color: var(--muted); margin-left: 6px; }
+.distance-value.nodata { color: #8b93a7; font-size: 42px; }
+.distance-side { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
+.state-badge { display: inline-block; width: fit-content; padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 13px; letter-spacing: 1px; }
+.state-badge.clear { background: rgba(53,194,106,.15); color: var(--ok); }
+.state-badge.caution { background: rgba(232,163,61,.15); color: var(--warn); }
+.state-badge.danger { background: rgba(239,83,80,.18); color: var(--bad); animation: blink 1s infinite; }
+.state-badge.nodata { background: rgba(160,170,190,.14); color: #a8b2c6; }
+.state-badge.cab { background: rgba(64,156,255,.12); color: var(--accent); }
+
+/* distance vs fog-gated thresholds */
+.range { padding: 8px 16px 14px; }
+.range-track { position: relative; height: 16px; border-radius: 8px; background: #1b2130; overflow: visible; }
+.range-fill { height: 100%; border-radius: 8px; transition: width .4s ease; }
+.range-fill.ok { background: linear-gradient(90deg, #2f8f57, #35c26a); }
+.range-fill.warn { background: linear-gradient(90deg, #b57b28, #e8a33d); }
+.range-fill.bad { background: linear-gradient(90deg, #a33a38, #ef5350); }
+.range-mark { position: absolute; top: -3px; width: 2px; height: 22px; background: #e8a33d; opacity: .9; }
+.range-mark.danger { background: #ef5350; }
+
+/* physical traffic-light mimic (mirrors the reported LED colour) */
+.traffic { display: flex; align-items: center; gap: 8px; }
+.tl { width: 16px; height: 16px; border-radius: 50%; background: #242b3b; box-shadow: inset 0 0 4px rgba(0,0,0,.6); }
+.tl-green.on { background: #35c26a; box-shadow: 0 0 10px rgba(53,194,106,.8); }
+.tl-yellow.on { background: #ffc857; box-shadow: 0 0 10px rgba(255,200,87,.8); }
+.tl-red.on { background: #ef5350; box-shadow: 0 0 10px rgba(239,83,80,.8); }
+.traffic-label { font-size: 13px; font-weight: 700; }
+.traffic-label em { font-style: normal; color: var(--muted); font-weight: 500; font-size: 11px; margin-left: 4px; }
+
+/* card tones for real readings */
+.card-warn .card-value { color: var(--warn); }
+.card-bad .card-value { color: var(--bad); }
+.card-ok .card-value { color: var(--ok); }
+.card-warn .card-value .unit { color: inherit; opacity: .7; }
+
+/* N/A values read as muted text, not numbers */
+.card-value { overflow-wrap: anywhere; }
+
+/* ------------------- AI action advisory (real data only) ------------------ */
+.advice {
+  margin: 12px 16px 0; padding: 12px 16px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel2);
+}
+.advice-go { border-color: rgba(53,194,106,.55); background: rgba(53,194,106,.08); }
+.advice-caution { border-color: rgba(255,200,87,.55); background: rgba(255,200,87,.08); }
+.advice-stop { border-color: rgba(239,83,80,.6); background: rgba(239,83,80,.1); }
+.advice-title { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.advice-title em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.advice-head { font-size: 19px; font-weight: 800; margin-top: 5px; }
+.advice-go .advice-head { color: var(--ok); }
+.advice-caution .advice-head { color: var(--warn); }
+.advice-stop .advice-head { color: var(--bad); }
+.advice-lines { margin: 7px 0 0; padding-left: 18px; font-size: 13px; color: var(--text); }
+.advice-lines li { padding: 2px 0; }
+
+/* ------------------- Ultrasonic outputs strip ----------------------------- */
+.ultra-strip { margin: 6px 16px 0; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; }
+.ultra-title { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.ultra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
+.u-item { background: #171c28; border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+.u-item > span { display: block; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.u-item > b { display: block; font-size: 16px; margin-top: 3px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.u-item > b.u-ok { color: var(--ok); }
+.u-item > b.u-bad { color: var(--bad); }
+.u-item > b.u-nd { color: var(--muted); font-weight: 600; }
+.u-spark { grid-column: span 2; }
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 44px; margin-top: 5px; }
+.spark i { flex: 1; min-width: 4px; border-radius: 2px 2px 0 0; background: #35c26a; }
+.spark i.warn { background: #e8a33d; }
+.spark i.bad { background: #ef5350; }
+.spark em { font-style: normal; font-size: 12px; }
+
+/* ------------------- Simulation: stationary truck + real rock ------------ */
+.sim { margin: 10px 0 0; }
+.sim-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+.sim-head b { color: var(--text); }
+.sim-head .muted { text-transform: none; letter-spacing: 0; }
+.sim-stage {
+  position: relative; height: 172px; margin-top: 8px; overflow: hidden;
+  background: #12161f; border: 1px solid var(--line); border-radius: 8px;
+}
+/* asphalt road: runs from the left edge (under the truck) to the view edge */
+.sim-asphalt {
+  position: absolute; left: 4px; right: 56px; top: 44px; bottom: 40px;
+  background: #262a33; border-radius: 6px;
+}
+.road-edge { position: absolute; left: 0; right: 0; height: 3px; background: #dfe4ec; opacity: .8; }
+.road-top { top: 0; }
+.road-bottom { bottom: 0; }
+.road-dash {
+  position: absolute; left: 0; right: 0; top: 50%; margin-top: -1.5px; height: 3px; opacity: .6;
+  background: repeating-linear-gradient(90deg, #e6eaf2 0 18px, transparent 18px 36px);
+}
+/* measurement lane: starts where the truck's FRONT BUMPER is (0 cm) */
+.sim-lane { position: absolute; left: 66px; right: 56px; top: 44px; bottom: 40px; }
+.sim-band { position: absolute; top: 0; bottom: 0; opacity: .32; }
+.sim-band.bad { left: 0; background: #ef5350; }
+.sim-band.warn { background: #ffc857; }
+.sim-band.ok { background: #35c26a; }
+/* sonar cone: from the front bumper (0 cm) out to the rock — ALWAYS ahead */
+.sim-beam {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  height: 16px; z-index: 1;
+  background: linear-gradient(90deg, rgba(64,156,255,.6), rgba(64,156,255,.08));
+  clip-path: polygon(0 35%, 100% 0, 100% 100%, 0 65%);
+}
+.sim-truck {
+  position: absolute; left: -62px; top: 50%; transform: translateY(-50%);
+  z-index: 3; width: 62px; text-align: center;
+}
+.truck-svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,.55)); }
+.sim-truck-tag {
+  display: block; font-size: 9px; letter-spacing: 1px; font-weight: 700;
+  color: var(--accent); margin-top: 2px; white-space: nowrap;
+}
+.sim-rock {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  z-index: 2; text-align: center; transition: left .45s ease;
+}
+.rock-icon { font-size: 30px; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0,0,0,.6)); }
+.rock-danger .rock-icon { filter: drop-shadow(0 0 9px rgba(239,83,80,.9)); }
+.rock-warn .rock-icon { filter: drop-shadow(0 0 9px rgba(255,200,87,.85)); }
+.sim-rock-label {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  white-space: nowrap; margin-top: 2px; font-size: 11px; font-weight: 700;
+  background: rgba(10,13,20,.85); border: 1px solid var(--line);
+  border-radius: 5px; padding: 2px 6px; color: var(--text);
+}
+.rock-danger .sim-rock-label { color: #ff9d99; border-color: rgba(239,83,80,.6); }
+.rock-warn .sim-rock-label { color: #ffd68a; border-color: rgba(255,200,87,.55); }
+.rock-ok .sim-rock-label { color: #9be2b6; border-color: rgba(53,194,106,.5); }
+.sim-nodata {
+  position: absolute; inset: 0; z-index: 4; display: flex; align-items: center;
+  justify-content: center; gap: 8px; font-size: 14px; font-weight: 700;
+  color: #a8b2c6; background: rgba(18,22,31,.72); letter-spacing: .5px;
+}
+.sim-fog { position: absolute; inset: 0; z-index: 3; background: #d8dee9; pointer-events: none; }
+.sim-caption {
+  position: absolute; left: 8px; bottom: 6px; right: 8px; z-index: 5;
+  font-size: 11px; color: var(--muted); pointer-events: none;
+}
+.sim-scale { padding: 4px 2px 0; }
+.sim-foot { font-size: 11px; margin-top: 3px; }
+
+/* ------------------- Mobile / narrow screens ----------------------------- */
+@media (max-width: 760px) {
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .topbar-right { flex-wrap: wrap; gap: 6px; }
+  .brand { font-size: 16px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .u-spark { grid-column: span 1; }
+  .distance-hero { gap: 12px; padding: 12px 12px 4px; }
+  .distance-value { font-size: 52px; }
+  .card-value { font-size: 22px; }
+  .msg-controls { flex-wrap: wrap; }
+  .msg-controls input { min-width: 0; flex: 1 1 160px; }
+  .advice-head { font-size: 16px; }
+  .events li { flex-direction: column; align-items: flex-start; }
+  .ultra-strip { margin: 6px 10px 0; }
+  .advice { margin: 10px 10px 0; }
+  .sim-stage { height: 150px; }
+  .sim-asphalt { left: 3px; right: 40px; top: 40px; bottom: 36px; }
+  .sim-lane { left: 53px; right: 40px; top: 40px; bottom: 36px; }
+  .sim-truck { left: -50px; width: 50px; }
+  .rock-icon { font-size: 24px; }
+  .sim-rock-label { font-size: 10px; }
+}
+@media (max-width: 480px) {
+  .ultra-grid { grid-template-columns: 1fr 1fr; }
+  .btn { font-size: 12px; padding: 6px 9px; }
+}
