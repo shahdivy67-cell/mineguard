@@ -42,6 +42,9 @@ jobs:
           # real file at the share path -> HTTP 200 (no 404 spam in the console)
           mkdir -p dist/view/BRVmiLzctt5y
           cp dist/index.html dist/view/BRVmiLzctt5y/index.html
+          # interactive control-room entry point (offline until VITE_API_BASE is set)
+          mkdir -p dist/control
+          cp dist/index.html dist/control/index.html
           # SPA fallback for any other deep path
           cp dist/index.html dist/404.html
           # Root of the site = the UNINTERACTABLE view-only link
