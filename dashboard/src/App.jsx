@@ -17,7 +17,13 @@ import { useEffect, useRef, useState } from "react";
 // Viewer links work at any depth: "/view/…" locally, "/<repo>/view/…" on
 // GitHub Pages project sites.
 const VIEW_IDX = window.location.pathname.indexOf("/view/");
-const IS_VIEWER = VIEW_IDX >= 0;
+// Interactive (operator) mode only where it belongs: locally with the server,
+// or at the exact secret control path baked in at build time. On static
+// hosting everything else renders read-only, even if someone guesses a path.
+const CONTROL_PATH = import.meta.env.VITE_CONTROL_PATH || "";
+const IS_VIEWER =
+  VIEW_IDX >= 0 ||
+  (!!CONTROL_PATH && window.location.pathname.indexOf(CONTROL_PATH) < 0);
 const VIEW_PATH = IS_VIEWER
   ? window.location.pathname.slice(VIEW_IDX).replace(/\/+$/, "")
   : "/";

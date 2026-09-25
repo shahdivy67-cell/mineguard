@@ -36,15 +36,21 @@ jobs:
           # Optional: a public HTTPS MineGuard server that has the Arduino on
           # its serial port. Leave empty for a pure honest static page.
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          # Baked into the app so only the secret URL gets interactive controls.
+          VITE_CONTROL_PATH: ${{ secrets.CONTROL_PATH }}
+          # Path segment for the private control page (repo secret, never in git).
+          CONTROL_PATH: ${{ secrets.CONTROL_PATH }}
         run: |
           npm ci
           npm run build -- --base=/${{ github.event.repository.name }}/
           # real file at the share path -> HTTP 200 (no 404 spam in the console)
           mkdir -p dist/view/BRVmiLzctt5y
           cp dist/index.html dist/view/BRVmiLzctt5y/index.html
-          # interactive control-room entry point (offline until VITE_API_BASE is set)
-          mkdir -p dist/control
-          cp dist/index.html dist/control/index.html
+          # PRIVATE interactive control page (path from repo secret)
+          if [ -n "$CONTROL_PATH" ]; then
+            mkdir -p "dist/control/$CONTROL_PATH"
+            cp dist/index.html "dist/control/$CONTROL_PATH/index.html"
+          fi
           # SPA fallback for any other deep path
           cp dist/index.html dist/404.html
           # Root of the site = the UNINTERACTABLE view-only link
