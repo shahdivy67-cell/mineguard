@@ -39,7 +39,10 @@ jobs:
         run: |
           npm ci
           npm run build -- --base=/${{ github.event.repository.name }}/
-          # SPA fallback: /<repo>/view/<token>/ must load the app
+          # real file at the share path -> HTTP 200 (no 404 spam in the console)
+          mkdir -p dist/view/BRVmiLzctt5y
+          cp dist/index.html dist/view/BRVmiLzctt5y/index.html
+          # SPA fallback for any other deep path
           cp dist/index.html dist/404.html
           # Root of the site = the UNINTERACTABLE view-only link
           cat > dist/index.html <<'EOF'
