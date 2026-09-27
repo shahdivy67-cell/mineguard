@@ -13,7 +13,7 @@
  * 31-100% = fog-dependent logic ON.
  */
 import { useEffect, useRef, useState } from "react";
-import MineBackdrop from "./components/MineBackdrop.jsx";
+import SimView from "./components/SimView.jsx";
 import View360 from "./components/View360.jsx";
 import ObjectProfile from "./components/ObjectProfile.jsx";
 import DriveTrain from "./components/DriveTrain.jsx";
@@ -170,111 +170,6 @@ function RangeBar({ distance, caution, danger, hasData }) {
         <span>0 cm</span>
         <span>caution {caution} · danger {danger}</span>
         <span>{MAX} cm (clear beyond)</span>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SIMULATION — a stationary truck and a "big rock", rendered ONLY from the
-// real ultrasonic echo: if the sensor reports 20 cm, the rock sits at 20 cm
-// ahead of the truck. There is no position sensor, so the truck never moves;
-// with no echo (NO READING / Disconnected) the rock is not drawn at all —
-// the view says "No data" instead of inventing a rock position.
-// ---------------------------------------------------------------------------
-function SimView({ distance, linkOk, caution, danger, obstacleState, fogActive, fogIntensity }) {
-  const hasData = linkOk && distance != null;
-  // Auto-range view (min 120 cm so the fog-widened bands always fit):
-  const viewMax = hasData ? Math.max(120, Math.ceil((distance + 20) / 50) * 50) : 120;
-  const pct = (cm) => Math.min(100, (cm / viewMax) * 100);
-  const rockPct = hasData ? pct(distance) : 0;
-  const dPct = pct(danger);
-  const cPct = pct(caution);
-  const badge = obstacleState.toLowerCase().replace(/\s+/g, "");
-  return (
-    <div className="sim">
-      <div className="sim-head">
-        <b>SIMULATION — STATIONARY TRUCK + BIG ROCK</b>
-        <span className="muted">front sensor looks forward — the rock is drawn AHEAD of the truck, from the live echo only</span>
-        <span className={`state-badge ${hasData ? badge : "nodata"}`}>
-          {hasData ? obstacleState : "NO DATA"}
-        </span>
-      </div>
-      <div className="sim-stage">
-        {/* the road the truck sits on (asphalt, edge lines, lane markings) */}
-        <div className="sim-asphalt">
-          <div className="road-edge road-top" />
-          <div className="road-edge road-bottom" />
-          <div className="road-dash" />
-        </div>
-        <div className="sim-lane">
-          {hasData && (
-            <>
-              <div className="sim-band bad" style={{ width: `${dPct}%` }} title={`danger < ${danger} cm`} />
-              <div className="sim-band warn" style={{ left: `${dPct}%`, width: `${cPct - dPct}%` }} title={`caution band ${danger}–${caution} cm`} />
-              <div className="sim-band ok" style={{ left: `${cPct}%`, right: 0 }} title={`clear > ${caution} cm`} />
-              <div className="sim-beam" style={{ width: `${rockPct}%` }} />
-              <div
-                className={`sim-rock ${distance < danger ? "rock-danger" : distance <= caution ? "rock-warn" : "rock-ok"}`}
-                style={{ left: `${rockPct}%` }}
-              >
-                <span className="rock-icon">🪨</span>
-                <span className="sim-rock-label">
-                  BIG ROCK · {Math.round(distance)} cm
-                </span>
-              </div>
-            </>
-          )}
-          {/* Real truck (top-down), nose pointing RIGHT — the ultrasonic is
-              mounted at the front bumper and looks FORWARD, so the rock is
-              always drawn ahead of the truck, never behind it. */}
-          <div className="sim-truck" title="Truck — stationary, front ultrasonic faces forward">
-            <svg viewBox="0 0 62 64" className="truck-svg">
-              {/* wheels */}
-              <rect x="5" y="3" width="12" height="7" rx="2" fill="#14161c" />
-              <rect x="5" y="54" width="12" height="7" rx="2" fill="#14161c" />
-              <rect x="21" y="3" width="12" height="7" rx="2" fill="#14161c" />
-              <rect x="21" y="54" width="12" height="7" rx="2" fill="#14161c" />
-              <rect x="43" y="3" width="12" height="7" rx="2" fill="#14161c" />
-              <rect x="43" y="54" width="12" height="7" rx="2" fill="#14161c" />
-              {/* cargo trailer */}
-              <rect x="3" y="9" width="34" height="46" rx="3" fill="#b7c0cd" stroke="#7d8798" strokeWidth="1.5" />
-              <line x1="11" y1="11" x2="11" y2="53" stroke="#98a2b3" strokeWidth="1" />
-              <line x1="19" y1="11" x2="19" y2="53" stroke="#98a2b3" strokeWidth="1" />
-              <line x1="27" y1="11" x2="27" y2="53" stroke="#98a2b3" strokeWidth="1" />
-              {/* cab (facing right = forward) */}
-              <path d="M37 11 h14 a6 6 0 0 1 6 6 v30 a6 6 0 0 1 -6 6 h-14 z" fill="#3f74cf" stroke="#2b56a6" strokeWidth="1.5" />
-              <rect x="50.5" y="16" width="5.5" height="32" rx="2.5" fill="#9fd2ff" />
-              {/* headlights at the front */}
-              <rect x="52.5" y="12.5" width="4" height="6" rx="1.5" fill="#ffd76a" />
-              <rect x="52.5" y="45.5" width="4" height="6" rx="1.5" fill="#ffd76a" />
-              {/* the ultrasonic sensor (TRIG D9 / ECHO D10) on the front bumper */}
-              <circle cx="58.5" cy="32" r="2.8" fill="#40d0ff" stroke="#1b83b5" strokeWidth="1" />
-            </svg>
-            <span className="sim-truck-tag">STATIONARY</span>
-          </div>
-        </div>
-        {!hasData && (
-          <div className="sim-nodata">
-            {linkOk ? "NO READING — echo lost, rock position unknown" : "No data — simulation needs a live echo"}
-          </div>
-        )}
-        {fogActive && (
-          <div className="sim-fog" style={{ opacity: (fogIntensity / 100) * 0.55 }} title={`fog control ${fogIntensity}%`} />
-        )}
-        <div className="sim-caption">
-          truck fixed — no position sensor · sensor D9/D10 faces forward → rock AHEAD = real distance
-          {hasData ? ` ${Math.round(distance)} cm` : " (No data)"}
-        </div>
-      </div>
-      <div className="meter-scale sim-scale">
-        <span>0 cm</span>
-        <span>caution {caution} · danger {danger}</span>
-        <span>view to {viewMax} cm</span>
-      </div>
-      <div className="muted sim-foot">
-        Zones: red &lt; {danger} cm · yellow {danger}–{caution} cm · green beyond {caution} cm
-        {fogActive ? ` · white overlay = PC fog control ${fogIntensity}% (logic ON)` : ""}
       </div>
     </div>
   );
