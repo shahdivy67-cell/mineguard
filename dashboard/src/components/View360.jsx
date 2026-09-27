@@ -18,7 +18,7 @@ const PRESETS = [
   { id: "top", label: "TOP" },
 ];
 
-export default function View360({ distance, linkOk, caution, danger, obstacleState }) {
+export default function View360({ distance, linkOk, caution, danger, obstacleState, fogActive, fogIntensity }) {
   const controllerRef = useRef(null);
   const hasData = linkOk && distance != null;
   const viewMax = hasData ? Math.max(120, Math.ceil((distance + 20) / 50) * 50) : 120;
@@ -49,6 +49,8 @@ export default function View360({ distance, linkOk, caution, danger, obstacleSta
           caution={caution}
           danger={danger}
           viewMax={viewMax}
+          fogActive={fogActive}
+          fogIntensity={fogIntensity}
         />
         {!hasData && <div className="sim-nodata">No data — the live echo paints the front sector</div>}
       </div>
@@ -57,6 +59,7 @@ export default function View360({ distance, linkOk, caution, danger, obstacleSta
         The ultrasonic (cyan dot on the front bumper) is the only sensor — the sides and rear have none.
         Zones: red &lt; {danger} cm · yellow {danger}–{caution} cm · green beyond {caution} cm
         {hasData ? ` · rock at ${Math.round(distance)} cm` : ""}
+        {fogActive ? ` · fog ${fogIntensity}% — real distance haze thickening` : ""}
       </div>
     </div>
   );

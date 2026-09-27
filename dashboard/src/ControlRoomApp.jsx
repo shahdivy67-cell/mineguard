@@ -13,7 +13,6 @@
  * 31-100% = fog-dependent logic ON.
  */
 import { useEffect, useRef, useState } from "react";
-import SimView from "./components/SimView.jsx";
 import View360 from "./components/View360.jsx";
 import ObjectProfile from "./components/ObjectProfile.jsx";
 import DriveTrain from "./components/DriveTrain.jsx";
@@ -183,7 +182,34 @@ export default function App() {
   const [msgText, setMsgText] = useState(""); // 📨 emergency message draft
   const [fogDraft, setFogDraft] = useState(null); // local slider echo
 
-  const device = state?.device || null;
+  // The dashboard ALWAYS renders the full control-room UI — with no data it
+  // shows honest "No data / Disconnected / N/A" everywhere instead of a blank
+  // page. The server may be down, the Arduino unplugged, or the sensor in a
+  // NO READING stretch; the page itself never goes blank.
+  const EMPTY_DEVICE = {
+    id: "MG-01",
+    name: "Sensor truck",
+    link: "DISCONNECTED",
+    linkDetail: "No data received — serial bridge has delivered no telemetry",
+    distanceCm: null,
+    obstacleState: "NO DATA",
+    obstacleReported: null,
+    light: null,
+    buzzer: null,
+    buzzerOn: null,
+    fogReported: null,
+    fogActiveReported: null,
+    imu: null,
+    speed: null,
+    speedText: "N/A — No speed sensor",
+    ttc: null,
+    ttcText: "N/A — Speed data unavailable",
+    uptimeSec: null,
+    msgCount: 0,
+    truckMessage: null,
+    risk: { level: "NO DATA", score: null, factors: [{ label: "No data received — risk cannot be assessed", weight: 0, tone: "warn" }] },
+  };
+  const device = state?.device || EMPTY_DEVICE;
   const linkOk = device?.link === "CONNECTED";
   const riskLevel = device?.risk?.level || "NO DATA";
   const dangerActive = riskLevel === "DANGER"; // real-data risk only
@@ -313,8 +339,17 @@ export default function App() {
     ? "BRIDGE: not started"
     : `BRIDGE: ${bridge.state === "open" ? "open" : bridge.state} · ${bridge.port || "?"} @ ${bridge.baud || "?"} (${bridge.link || "?"})`;
 
-  // AI action advisory + everything the ultrasonic can yield (real only)
-  const advice = device?.advice || null;
+  // AI action advisory + everything the ultrasonic can yield (real only).
+  // Without live data the advisory honestly says NO DATA — never a fake "proceed".
+  const advice = device?.advice || {
+    tone: "stop",
+    headline: "NO DATA — sensor link is down",
+    lines: [
+      "This page is online, but no live telemetry is reaching it.",
+      "Every panel honestly shows No data until the Arduino link is restored.",
+    ],
+    at: Date.now(),
+  };
   const ultra = device?.ultrasonic || {};
   const dist = linkOk ? device?.distanceCm ?? null : null;
   const cautionCm = state?.thresholds?.obstacleCautionCm ?? 40;
@@ -365,15 +400,8 @@ export default function App() {
         </div>
       </header>
 
-      {!state && (
-        <div className="loading">
-          {WS_URL
-            ? `Waiting for MineGuard server on ${WS_URL} …`
-            : "Static demo page — no live MineGuard server configured (set VITE_API_BASE). All values stay honest: No data."}
-        </div>
-      )}
-
-      {state && device && (
+      {/* full control-room UI always renders — honest states when there is no data */}
+      {(
         <>
           {!linkOk && (
             <div className="cab-alert danger">
@@ -436,8 +464,8 @@ export default function App() {
 
               <RangeBar
                 distance={device.distanceCm}
-                caution={state.thresholds.obstacleCautionCm}
-                danger={state.thresholds.obstacleDangerCm}
+                caution={state?.thresholds?.obstacleCautionCm ?? 40}
+                danger={state?.thresholds?.obstacleDangerCm ?? 15}
                 hasData={linkOk}
               />
 
@@ -484,7 +512,7 @@ export default function App() {
                         return (
                           <i
                             key={i}
-                            className={h <= (state.thresholds.obstacleDangerCm) ? "bad" : h <= cautionCm ? "warn" : "ok"}
+                            className={h <= dangerCm ? "bad" : h <= cautionCm ? "warn" : "ok"}
                             style={{ height: `${Math.max(8, Math.min(100, (h / max) * 100))}%` }}
                             title={`${h} cm`}
                           />
@@ -495,24 +523,15 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ---- simulation: stationary truck + rock at the REAL distance ---- */}
-              <SimView
-                distance={dist}
-                linkOk={linkOk}
-                caution={state.thresholds.obstacleCautionCm}
-                danger={state.thresholds.obstacleDangerCm}
-                obstacleState={device.obstacleState}
-                fogActive={fogActive}
-                fogIntensity={state.fogIntensity}
-              />
-
               {/* 360° view + object profile + drivetrain — all real-data only */}
               <View360
                 distance={dist}
                 linkOk={linkOk}
-                caution={state.thresholds.obstacleCautionCm}
-                danger={state.thresholds.obstacleDangerCm}
+                caution={state?.thresholds?.obstacleCautionCm ?? 40}
+                danger={state?.thresholds?.obstacleDangerCm ?? 15}
                 obstacleState={device.obstacleState}
+                fogActive={fogActive}
+                fogIntensity={state.fogIntensity}
               />
               <ObjectProfile object={object} linkOk={linkOk} />
               <DriveTrain
