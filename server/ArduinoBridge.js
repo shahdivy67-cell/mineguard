@@ -315,6 +315,9 @@ async function openSerial(explicit) {
   let pick = await pickPort(explicit);
   while (!pick) {
     log("no serial port yet — waiting for the Arduino/HC-05 to appear (retrying in 3 s)…");
+    // Keep the dashboard informed even when the first POST raced the server
+    // startup — otherwise it would show "not-started" forever.
+    reportBridgeStatus({ state: "scanning", port: null, baud: null, link: "none" });
     await new Promise((r) => setTimeout(r, 3000));
     pick = await pickPort(explicit);
   }
