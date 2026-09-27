@@ -244,7 +244,7 @@ export class TruckScene {
     lamp.position.set(2, 7, 0);
     this.scene.add(lamp);
 
-    this.buildMine(this.scene);
+    buildMine(this.scene);
 
     // the truck
     this.truck = buildTruck();
