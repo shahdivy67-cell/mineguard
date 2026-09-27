@@ -66,6 +66,17 @@ function post(url, obj) {
 async function main() {
   const state = async () => (await get(`${BASE}/api/state`)).body;
 
+  // Deterministic baseline: fog control back to 0 — a previous run or a
+  // user's slider movement must never leak into this suite's math.
+  const reset = new WebSocket("ws://localhost:4000");
+  await new Promise((res, rej) => {
+    reset.on("open", res);
+    reset.on("error", rej);
+  });
+  reset.send(JSON.stringify({ type: "setFogIntensity", value: 0 }));
+  await sleep(600);
+  reset.close();
+
   // -------------------------------------------------------------------------
   // 1. fresh boot with the bridge stopped: honest "no data" baseline
   // -------------------------------------------------------------------------
@@ -338,7 +349,14 @@ async function main() {
   // -------------------------------------------------------------------------
   // 6. bridge parser contract (unit level, no hardware needed)
   // -------------------------------------------------------------------------
-  const { parseTelemetryLine } = require("./ArduinoBridge.js");
+  const { parseTelemetryLine, isBluetoothPort } = require("./ArduinoBridge.js");
+  check(
+    "Bluetooth-only rule: a BT COM port is accepted, a USB port is not",
+    isBluetoothPort({ path: "COM5", friendlyName: "Standard Serial over Bluetooth link (COM5)" }) === true &&
+      isBluetoothPort({ path: "COM3", friendlyName: "USB Serial Port (COM3)", manufacturer: "FTDI" }) === false &&
+      isBluetoothPort({ path: "COM4", friendlyName: "Arduino Uno (COM4)" }) === false,
+    ""
+  );
   const good = parseTelemetryLine(
     '{"vehicleId":"MG-01","obstacleDistance":73,"tilt":4.0,"accel":1.02,"crash":0,"eStop":0,"ai":0,"fog":0,"imu":1,"light":"GREEN","buzzer":"CAUTION","buzzerOn":1,"msgCount":2,"uptime":12}'
   );

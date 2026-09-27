@@ -28,9 +28,13 @@
  *   COM=COM5 node ArduinoBridge.js       # via environment variable
  *
  * Port / baud rules:
- *   - A paired HC-05 shows up in Windows as "Standard Serial over Bluetooth
- *     link (COMn)" and opens at 9600 (HC-05 factory baud).
- *   - USB serial (Arduino onboard / FTDI adapter) opens at 57600 (firmware).
+ *   - Bluetooth ONLY: the rig's data path is the paired HC-05 ("Standard Serial
+ *     over Bluetooth link (COMn)"), opened at 9600 (HC-05 factory baud).
+ *     USB serial is intentionally NOT used — the truck runs on battery +
+ *     Bluetooth, so no USB cable is ever required and the bridge never falls
+ *     back to a USB COM port.
+ *   - An explicit COM name may still be passed as a debug override
+ *     (node ArduinoBridge.js COM5), but auto-detect never picks USB.
  *
  * Arduino line formats accepted (see parseTelemetryLine):
  *   (A) JSON — arduino/MineGuard.ino V2 firmware:
@@ -185,20 +189,24 @@ async function reportBridgeStatus(status) {
   } catch {}
 }
 
+// A port counts as the rig's Bluetooth link only when Windows reports it as
+// such ("Standard Serial over Bluetooth link (COMn)" / BTHENUM). USB serial
+// adapters (CH340/CP210x/FTDI/Arduino) are NOT the data path — never.
+function isBluetoothPort(p) {
+  return /BTH|Bluetooth/i.test(JSON.stringify(p));
+}
+
 async function pickPort(explicit) {
   const ports = await SerialPort.list();
-  const isBT = (p) => /BTH|Bluetooth/i.test(JSON.stringify(p));
+  const isBT = isBluetoothPort;
   let found;
   if (explicit) {
-    // Look the given COM name up so we still learn whether it's Bluetooth
+    // Debug override — the rig itself is Bluetooth-only.
     found = ports.find((p) => p.path.toUpperCase() === explicit.toUpperCase()) || { path: explicit };
+    if (found && !isBT(found)) log(`note: ${found.path} is not a Bluetooth port (debug override)`);
   } else {
-    // This rig runs over the HC-05 Bluetooth link: prefer a Bluetooth COM
-    // port, then USB/serial adapters, then anything at all.
-    found =
-      ports.find(isBT) ||
-      ports.find((p) => /USB|CH340|CP210|FTDI|Arduino/i.test(p.path + (p.manufacturer || ""))) ||
-      ports[0];
+    // Bluetooth ONLY — all data integration flows through the HC-05 link.
+    found = ports.find(isBT);
   }
   if (!found) return null;
   // HC-05 factory baud is 9600; the firmware's USB link runs 57600
@@ -314,7 +322,7 @@ async function openSerial(explicit) {
   // Re-scan until a port appears: plugging the Arduino in later "just works".
   let pick = await pickPort(explicit);
   while (!pick) {
-    log("no serial port yet — waiting for the Arduino/HC-05 to appear (retrying in 3 s)…");
+    log("no Bluetooth port yet — pair the HC-05 (PIN 1234); the bridge connects at 9600 (retrying in 3 s)…");
     // Keep the dashboard informed even when the first POST raced the server
     // startup — otherwise it would show "not-started" forever.
     reportBridgeStatus({ state: "scanning", port: null, baud: null, link: "none" });
@@ -460,4 +468,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseTelemetryLine };
+module.exports = { parseTelemetryLine, isBluetoothPort };

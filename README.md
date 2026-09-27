@@ -66,9 +66,9 @@ node ArduinoBridge.js       # serial bridge (or: node ArduinoBridge.js COM3)
 
 ```
 Arduino Nano (HC-SR04 real distance)
-      │  serial: USB or paired HC-05 Bluetooth (auto-detected COM port)
+      │  Bluetooth ONLY: paired HC-05 (auto-detected BT COM port, 9600)
       ▼
-server/ArduinoBridge.js  ── auto-baud sniff (9600 first, then 57600)
+server/ArduinoBridge.js  -- Bluetooth-only (never a USB port), sniff 9600 then 57600
       │            ── parses telemetry, DROPS anything unknown
       │            ── POST /telemetry  (loopback only — remote devices can't inject)
       ▼
@@ -214,7 +214,6 @@ rotate). Devices must be on the same Wi-Fi (`.local` resolves via mDNS).
 ### Pairing the HC-05 (battery + Bluetooth power)
 
 The rig now runs on battery with the HC-05 as the data link (no USB cable):
-
 1. Power the Arduino (battery) — the HC-05 LED blinks.
 2. Windows → **Settings → Bluetooth & devices → Add device → Bluetooth**.
 3. Select **HC-05**, enter the PIN **1234** (or 0000).

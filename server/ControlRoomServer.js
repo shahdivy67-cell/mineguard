@@ -875,12 +875,11 @@ setInterval(() => {
   // for stop/caution — "go" is the normal state, not a message.
   const advice = buildAdvice(now);
   if (advice.tone !== device.prevAdviceTone) {
-    if (
-      device.prevAdviceTone !== null &&
-      advice.tone !== "go" &&
-      linkFresh(now) &&
-      !(device.truckMessage && !device.truckMessage.delivered)
-    ) {
+    // A message sent by the admin (or a previous AI note) wins while it is
+    // still fresh — the AI must not overwrite a just-delivered message.
+    const tm = device.truckMessage;
+    const tmFresh = tm && now - tm.at < 30000;
+    if (device.prevAdviceTone !== null && advice.tone !== "go" && linkFresh(now) && !tmFresh) {
       device.truckMessage = { text: `AI: ${advice.headline}`, at: now, delivered: false, source: "ai" };
       raiseEvent("TRUCK_MESSAGE", "warning",
         `${device.id} ← AI MESSAGE: "${advice.headline}"`, { message: advice.headline, source: "ai" }, true);
