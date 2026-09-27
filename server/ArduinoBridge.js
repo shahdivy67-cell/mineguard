@@ -12,18 +12,20 @@
  *                                      the firmware owns that gate)
  *                       MSG <text>    EMERGENCY message from the operator —
  *                                     msgCount in telemetry is the receipt.
+ *                       MOTOR FWD|REV <0-255> | MOTOR STOP
+ *                                     drive command for the toy truck's motor
+ *                                     (D11 PWM / D12,D13 direction — see the
+ *                                     firmware header for the wiring assumption)
  *
- * WHAT THIS BRIDGE NEVER DOES:
- *   - it never invents speed (the Arduino has no speed sensor, so no speed
- *     field is sent at all — the dashboard shows "N/A — No speed sensor")
- *   - it never invents position (no positioning sensor — no x/y/heading)
- *   - it never fabricates sensor values; if the port is silent, the server
- *     simply sees "No data / Disconnected"
+ * Telemetry fields the bridge forwards (real only): obstacleDistance, fog,
+ * fogActiveReported, obstacleReported, light, buzzer, buzzerOn, imu, msgCount,
+ * uptime, motor, motorPwm, batteryV. Speed/x/y/heading are NEVER forwarded —
+ * this rig has no speed or position sensor.
  *
  * Usage:
- *   node bridge.js                # auto-detect (Bluetooth port preferred)
- *   node bridge.js COM5           # a specific port (USB … or Bluetooth)
- *   COM=COM5 node bridge.js       # via environment variable
+ *   node ArduinoBridge.js                # auto-detect (Bluetooth port preferred)
+ *   node ArduinoBridge.js COM5           # a specific port (USB … or Bluetooth)
+ *   COM=COM5 node ArduinoBridge.js       # via environment variable
  *
  * Port / baud rules:
  *   - A paired HC-05 shows up in Windows as "Standard Serial over Bluetooth
@@ -42,7 +44,7 @@
  *
  * Baud: auto-sniffed — 9600 first (rig sketch / HC-05), then 57600 (JSON fw).
  *
- * Expected from the laptop (this bridge): FOG <0-100> | MSG <text>
+ * Expected from the laptop (this bridge): FOG <0-100> | MSG <text> | MOTOR …
  */
 
 const { SerialPort } = require("serialport");
@@ -104,6 +106,15 @@ function parseTextLine(line, id) {
     out.buzzerOn = on ? 1 : 0;
     out.buzzer = on ? "SOUNDING" : "SILENT";
   }
+  // New hardware reported by MineGuard.ino (optional — parsed if present):
+  const mo = rest.match(/Motor:\s*(FWD|REV|OFF)/i);
+  if (mo) out.motor = mo[1].toUpperCase();
+  const pw = rest.match(/PWM:\s*(\d{1,3})/i);
+  if (pw) out.motorPwm = Math.min(255, parseInt(pw[1], 10));
+  const bt = rest.match(/Battery:\s*([0-9]+(?:\.[0-9]+)?)\s*V/i);
+  if (bt) out.batteryV = parseFloat(bt[1]);
+  const ms = rest.match(/Msgs:\s*(\d+)/i);
+  if (ms) out.msgCount = parseInt(ms[1], 10);
   return out;
 }
 
@@ -134,6 +145,10 @@ function parseTelemetryLine(raw, fallbackId = VEHICLE) {
     msgCount: t.msgCount,
     uptime: t.uptime,
   };
+  // New hardware (MineGuard.ino): motor state + battery volts — real only.
+  if (t.motor === "FWD" || t.motor === "REV" || t.motor === "OFF") out.motor = t.motor;
+  if (typeof t.motorPwm === "number") out.motorPwm = Math.min(255, Math.round(t.motorPwm));
+  if (typeof t.batteryV === "number") out.batteryV = t.batteryV;
   // Tilt/accel are only real when an IMU actually answered (imu:1) —
   // with no IMU fitted the firmware reports imu:0 and we pass nothing.
   if (t.imu === 1) {
@@ -383,7 +398,7 @@ async function openSerial(explicit) {
 }
 
 // --- outbound: control-room state -> Arduino commands (over the open link) --
-let lastSent = { fog: null, msgAt: 0 };
+let lastSent = { fog: null, msgAt: 0, motorKey: null };
 function sendCmd(line) {
   if (currentPort && currentPort.isOpen) {
     currentPort.write(line + "\n");
@@ -395,8 +410,8 @@ function connectControlRoom() {
   const wsUrl = SERVER.replace(/^http/, "ws");
   const ws = new WebSocket(wsUrl);
   ws.on("open", () => {
-    log(`control-room link ${wsUrl} — fog / emergency messages now reach the cab`);
-    lastSent = { fog: null, msgAt: 0 }; // resend the fog state on (re)connect
+    log(`control-room link ${wsUrl} — fog / emergency messages / motor now reach the cab`);
+    lastSent = { fog: null, msgAt: 0, motorKey: null }; // resend the fog state on (re)connect
   });
   ws.on("message", (raw) => {
     try {
@@ -416,6 +431,16 @@ function connectControlRoom() {
       if (tm && !tm.delivered && tm.at !== lastSent.msgAt) {
         lastSent.msgAt = tm.at;
         sendCmd(`MSG ${tm.text}`);
+      }
+
+      // Drive command: MOTOR FWD|REV <0-255> / MOTOR STOP — sent on change.
+      const mc = s.device?.motorCmd;
+      if (mc) {
+        const key = `${mc.dir}:${mc.pwm}`;
+        if (key !== lastSent.motorKey) {
+          lastSent.motorKey = key;
+          sendCmd(mc.dir === "OFF" ? "MOTOR STOP" : `MOTOR ${mc.dir} ${mc.pwm}`);
+        }
       }
     } catch {
       /* ignore malformed frames */

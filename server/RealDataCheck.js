@@ -2,7 +2,7 @@
  * MineGuard REAL-DATA suite — proves the application NEVER fabricates
  * measurements and ingests ONLY what the Arduino reports.
  *
- *   node realcheck.js        (server up on :4000,
+ *   node RealDataCheck.js     (server up on :4000,
  *                             serial bridge STOPPED so link state is
  *                             deterministic: No data / Disconnected)
  *
@@ -338,7 +338,7 @@ async function main() {
   // -------------------------------------------------------------------------
   // 6. bridge parser contract (unit level, no hardware needed)
   // -------------------------------------------------------------------------
-  const { parseTelemetryLine } = require("./bridge.js");
+  const { parseTelemetryLine } = require("./ArduinoBridge.js");
   const good = parseTelemetryLine(
     '{"vehicleId":"MG-01","obstacleDistance":73,"tilt":4.0,"accel":1.02,"crash":0,"eStop":0,"ai":0,"fog":0,"imu":1,"light":"GREEN","buzzer":"CAUTION","buzzerOn":1,"msgCount":2,"uptime":12}'
   );
@@ -393,6 +393,75 @@ async function main() {
   check("parser recognises the rig's boot banner", banner && typeof banner.boot === "string", JSON.stringify(banner));
   const boot = parseTelemetryLine('{"boot":"MineGuard V2 ready","fw":"1.0"}');
   check("parser recognises the boot banner", boot && typeof boot.boot === "string", JSON.stringify(boot));
+  // New hardware fields (MineGuard.ino) — parsed when present; speed still dropped:
+  const textHw = parseTelemetryLine("Distance: 80 cm | Fog: 0% | Fog Active: NO | Obstacle: SAFE | Motor: FWD | PWM: 180 | Battery: 7.42 V | Msgs: 2");
+  check(
+    "parser reads the new hardware fields (motor/pwm/battery/msgs)",
+    textHw && textHw.obstacleDistance === 80 && textHw.motor === "FWD" && textHw.motorPwm === 180 && textHw.batteryV === 7.42 && textHw.msgCount === 2,
+    JSON.stringify(textHw)
+  );
+  const jsonHw = parseTelemetryLine('{"vehicleId":"MG-01","obstacleDistance":50,"motor":"REV","motorPwm":120,"batteryV":7.1,"msgCount":3,"speed":8.8}');
+  check(
+    "parser forwards motor/battery but still drops injected speed",
+    jsonHw && jsonHw.motor === "REV" && jsonHw.motorPwm === 120 && jsonHw.batteryV === 7.1 && !("speed" in jsonHw),
+    JSON.stringify(jsonHw)
+  );
+
+  // -------------------------------------------------------------------------
+  // 6b. object profile + AI expected speed + drivetrain — honest by contract
+  // -------------------------------------------------------------------------
+  const { closingSpeed, obstacleSpeed, objectWidthCm, objectLengthCm, expectedSpeedKph } = require("./Distance.js");
+  const now = Date.now();
+  const mk = (pairs) => pairs.map(([dt, cm]) => ({ t: now - dt, cm }));
+  const ap = closingSpeed(mk([[1000, 100], [500, 75], [0, 50]]), now);
+  check("Distance.js: closing speed real (50 cm/s = 1.8 km/h approaching)", ap.kph === 1.8 && ap.cmps === -50, JSON.stringify(ap));
+  const stAp = obstacleSpeed(ap, true);
+  check("Distance.js: obstacle speed = closing when truck stationary", stAp.kph === 1.8 && stAp.direction === "approaching", JSON.stringify(stAp));
+  check("Distance.js: obstacle speed N/A when truck motion unknown", obstacleSpeed(ap, false).kph === null, "");
+  check("Distance.js: obstacle speed N/A when motor state unreported", obstacleSpeed(ap, null).kph === null, "");
+  const cross = mk([[1000, 40], [600, 40], [200, 40], [0, 40]]);
+  const w = objectWidthCm(cross, stAp);
+  check("Distance.js: width = dwell × speed (crossing echo)", w.cm === 50, JSON.stringify(w));
+  check("Distance.js: width N/A without a measured obstacle speed", objectWidthCm(cross, obstacleSpeed(ap, false)).cm === null, "");
+  const rec = closingSpeed(mk([[1000, 40], [500, 75], [0, 110]]), now);
+  const stRec = obstacleSpeed(rec, true);
+  check("Distance.js: receding direction detected", stRec.direction === "receding", JSON.stringify(stRec));
+  const len = objectLengthCm(mk([[1000, 40], [500, 75], [0, 110]]), stRec);
+  check("Distance.js: length = dwell × speed (receding echo)", len.cm === 69, JSON.stringify(len));
+  check("Distance.js: expected speed 0 with no live data", expectedSpeedKph({ linkOk: false, distanceCm: null, riskLevel: "NO DATA", fogActive: false }).kph === 0, "");
+  check("Distance.js: expected speed 0 in DANGER", expectedSpeedKph({ linkOk: true, distanceCm: 10, riskLevel: "DANGER", fogActive: false }).kph === 0, "");
+  check("Distance.js: expected speed 5 in CAUTION", expectedSpeedKph({ linkOk: true, distanceCm: 30, riskLevel: "CAUTION", fogActive: false }).kph === 5, "");
+  check(
+    "Distance.js: expected speed 20 clear / 10 with fog",
+    expectedSpeedKph({ linkOk: true, distanceCm: 100, riskLevel: "CLEAR", fogActive: false }).kph === 20 &&
+      expectedSpeedKph({ linkOk: true, distanceCm: 100, riskLevel: "CLEAR", fogActive: true }).kph === 10,
+    ""
+  );
+
+  // The payload's own object/vehicle/aiSpeed blocks (no data baseline):
+  check(
+    "object profile: all null with reasons when there is no data",
+    d.object &&
+      d.object.depthCm === null &&
+      d.object.closingKph === null &&
+      d.object.obstacleKph === null &&
+      d.object.widthCm === null &&
+      d.object.lengthCm === null &&
+      d.object.heightCm === null &&
+      typeof d.object.obstacleNote === "string" &&
+      typeof d.object.heightNote === "string",
+    d.object && JSON.stringify(d.object)
+  );
+  check(
+    "aiSpeed: 0 km/h STOP with no live data",
+    d.aiSpeed && d.aiSpeed.kph === 0 && d.aiSpeed.label.includes("STOP"),
+    d.aiSpeed && JSON.stringify(d.aiSpeed)
+  );
+  check(
+    "vehicle: motor/battery null until the firmware reports them",
+    d.vehicle && d.vehicle.motor === null && d.vehicle.batteryV === null && d.vehicle.speed === null,
+    d.vehicle && JSON.stringify(d.vehicle)
+  );
 
   // -------------------------------------------------------------------------
   // 7. data files stay valid with real-only schema
@@ -403,7 +472,7 @@ async function main() {
   const header = csv.split(/\r?\n/)[0];
   check(
     "telemetry.csv header is the real-data schema",
-    header === "time,device_id,distance_cm,obstacle_state,link,fog_pct,fog_logic,risk,risk_score,light,buzzer,imu_fitted",
+    header === "time,device_id,distance_cm,obstacle_state,link,fog_pct,fog_logic,risk,risk_score,light,buzzer,imu_fitted,motor,battery_v",
     `header=${header}`
   );
   const rows = csv.trim().split(/\r?\n/).slice(1);

@@ -1,6 +1,6 @@
 /**
  * MineGuard FOG GATE check — real-data server (no simulator anywhere).
- *   node fogcheck.js        (server up on :4000, serial bridge STOPPED)
+ *   node FogControlCheck.js   (server up on :4000, serial bridge STOPPED)
  *
  * Fog intensity is a PC CONTROL value 0-100 — never a sensor reading.
  * Strict rule: 0-30% = fog-dependent logic OFF (base thresholds),
@@ -136,7 +136,7 @@ async function main() {
     ws.close();
   }
 
-  console.log(`\nfogcheck: ${pass} passed, ${fail} failed`);
+  console.log(`\nFogControlCheck: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
 

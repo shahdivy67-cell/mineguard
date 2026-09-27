@@ -19,6 +19,10 @@
  *   31-100 = fog-dependent logic ON (same gate the firmware uses).
  * - Broadcasts state to the dashboard over WebSocket.
  * - Read-only share links: /view/<token> streams state, refuses commands.
+ *
+ * Analytics modules (same real-data rule):
+ *   Distance.js — closing speed / obstacle speed / object dimensions from the
+ *                 real echo stream (every null carries a reason, never a number).
  */
 
 const http = require("http");
@@ -27,6 +31,7 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { WebSocketServer } = require("ws");
+const { analyzeObject, expectedSpeedKph } = require("./Distance.js");
 
 const PORT = process.env.PORT || 4000;
 const DATA_DIR = path.join(__dirname, "..", "data");
@@ -97,15 +102,23 @@ const device = {
   fogReported: null, // the fog intensity the Arduino confirms it applied
   uptimeSec: null,
   msgCount: 0,
-  truckMessage: null, // { text, at, delivered } — delivery confirmed by msgCount
+  truckMessage: null, // { text, at, delivered, source } — delivery confirmed by msgCount
   speed: null, // ALWAYS null: no speed sensor exists
   ttc: null, // ALWAYS null: TTC needs speed + distance; no speed sensor exists
   risk: { level: "NO DATA", score: null, factors: [] },
   // Everything the ultrasonic can yield: current echo + session statistics
-  ultra: { minCm: null, maxCm: null, readings: 0, noReadings: 0, history: [] },
+  ultra: { minCm: null, maxCm: null, readings: 0, noReadings: 0, history: [], series: [] },
+  // New hardware (reported by MineGuard.ino when flashed): motor state, battery.
+  motor: null, // { state: "FWD"|"REV"|"OFF", pwm: 0-255 } — null = not reported
+  motorCmd: null, // { dir, pwm, at } — what the control room last commanded
+  batteryV: null, // real battery volts from the firmware's ADC (null = not reported)
+  batteryPct: null, // 2S LiPo map of batteryV (null when unknown)
+  object: null, // Distance.js profile — real echoes only, nulls explained
+  aiSpeed: null, // AI expected speed — rules-based advice, never a measurement
   lastEventAt: {},
   prevLinkUp: null,
   prevDanger: false,
+  prevAdviceTone: null,
 };
 
 // Bridge process status (POST /bridge): which port, which link, open/closed
@@ -148,6 +161,10 @@ function computeRisk(now) {
     });
     factors.push({ label: "Distance unknown — risk cannot be assessed", weight: 0, tone: "warn" });
     factors.push({ label: `Speed ${SPEED_TEXT}`, weight: 0, tone: "warn" });
+    // The fog CONTROL value is real even with no sensor data — report it.
+    if (fogActive()) {
+      factors.push({ label: `Fog-dependent logic ON — intensity ${fogIntensity}%`, weight: 0, tone: "warn" });
+    }
     return { level: "NO DATA", score: null, factors };
   }
 
@@ -331,6 +348,25 @@ function applyTelemetry(t) {
   if (typeof t.fog === "number") device.fogReported = t.fog; // Arduino's applied fog (ack)
   if (typeof t.uptime === "number") device.uptimeSec = t.uptime;
 
+  // Timestamped echo series — the raw material for Distance.js analytics.
+  // Real echoes only; NO READING samples are NOT pushed (a gap is a gap).
+  if ("obstacleDistance" in t && typeof t.obstacleDistance === "number" && isFinite(t.obstacleDistance)) {
+    const u = device.ultra;
+    u.series.push({ t: now, cm: t.obstacleDistance });
+    if (u.series.length > 30) u.series.shift();
+  }
+
+  // Motor state reported by the firmware (MineGuard.ino): FWD/REV/OFF + PWM.
+  if (t.motor === "FWD" || t.motor === "REV" || t.motor === "OFF") {
+    device.motor = { state: t.motor, pwm: typeof t.motorPwm === "number" ? Math.round(t.motorPwm) : 0 };
+  }
+  // Battery volts from the firmware's ADC (assumed 1:1 divider on A0).
+  if (typeof t.batteryV === "number" && isFinite(t.batteryV) && t.batteryV > 0 && t.batteryV < 12) {
+    device.batteryV = Math.round(t.batteryV * 100) / 100;
+    // 2S LiPo map (6.6 V empty .. 8.4 V full) — assumption documented in UI.
+    device.batteryPct = Math.max(0, Math.min(100, Math.round(((device.batteryV - 6.6) / 1.8) * 100)));
+  }
+
   // The cab's OWN reported states (text sketch on the rig):
   if (typeof t.obstacleReported === "string" && /^[A-Z ]{1,12}$/.test(t.obstacleReported)) {
     device.obstacleReported = t.obstacleReported;
@@ -348,7 +384,7 @@ function applyTelemetry(t) {
 // ---------------------------------------------------------------------------
 const csvPath = path.join(DATA_DIR, "telemetry.csv");
 const CSV_HEADER =
-  "time,device_id,distance_cm,obstacle_state,link,fog_pct,fog_logic,risk,risk_score,light,buzzer,imu_fitted";
+  "time,device_id,distance_cm,obstacle_state,link,fog_pct,fog_logic,risk,risk_score,light,buzzer,imu_fitted,motor,battery_v";
 let csvRows = 0;
 if (!fs.existsSync(csvPath) || fs.readFileSync(csvPath, "utf8").split("\n")[0] !== CSV_HEADER) {
   if (fs.existsSync(csvPath)) {
@@ -372,6 +408,8 @@ setInterval(() => {
     device.light ?? "",
     device.buzzer ?? "",
     device.imu == null ? "" : device.imu ? 1 : 0,
+    device.motor ? device.motor.state : "",
+    device.batteryV == null ? "" : device.batteryV,
   ].join(",");
   try {
     fs.appendFileSync(csvPath, row + "\n");
@@ -444,6 +482,12 @@ function buildAdvice(now) {
         ? `No telemetry for ${Math.round((now - device.lastDataAt) / 1000)} s — halt the truck until live data resumes.`
         : "No telemetry has arrived from the truck — do not move on an unmonitored sensor."
     );
+    // The fog CONTROL value is real even with no sensor data — report it.
+    if (fogActive()) {
+      lines.push(
+        `Fog ${fogIntensity}% — fog logic ON: widened margins (caution ≤ ${cautionCm()} cm, danger < ${dangerCm()} cm) apply when data resumes.`
+      );
+    }
   } else if (d == null) {
     tone = "stop";
     headline = "STOP — ultrasonic reports NO READING";
@@ -530,6 +574,21 @@ function buildPayload() {
         readings: device.ultra.readings,
         noReadings: device.ultra.noReadings,
         history: device.ultra.history,
+      },
+      // Object profile — Distance.js analytics over the real echo series.
+      // Every null carries its reason (object.*Note) — nothing is estimated.
+      object: device.object,
+      // AI expected speed — rules-based advice from real risk + fog control.
+      aiSpeed: device.aiSpeed,
+      // Drivetrain — new hardware, real when reported, null when not.
+      vehicle: {
+        speed: null, // ALWAYS null: free wheels, no speed sensor
+        speedText: SPEED_TEXT,
+        motor: device.motor, // { state, pwm } reported by the firmware
+        motorCmd: device.motorCmd, // last command from the control room
+        moving: device.motor ? device.motor.state !== "OFF" : null, // reported, not assumed
+        batteryV: device.batteryV,
+        batteryPct: device.batteryPct,
       },
       stateColor:
         device.risk.level === "SAFE" ? "green"
@@ -769,6 +828,19 @@ wss.on("connection", (ws) => {
       broadcast();
     }
 
+    // Drive command from the control room -> the bridge pushes
+    // "MOTOR FWD|REV <0-255>" / "MOTOR STOP" over Bluetooth/USB. The real
+    // motor state comes back in the firmware's telemetry — command and
+    // reported state are shown separately, never conflated.
+    if (msg.type === "setMotor") {
+      const dir = msg.dir === "FWD" || msg.dir === "REV" ? msg.dir : "OFF";
+      const pwm = dir === "OFF" ? 0 : Math.max(0, Math.min(255, Math.round(Number(msg.pwm) || 0)));
+      device.motorCmd = { dir, pwm, at: Date.now() };
+      raiseEvent("MOTOR_COMMAND", "info",
+        `Control room commanded motor ${dir}${pwm ? ` @ PWM ${pwm}` : ""}`, { status: "resolved", dir, pwm }, true);
+      broadcast();
+    }
+
     if (msg.type === "ack" && msg.eventId) {
       const ev = eventLog.find((e) => e.id === msg.eventId);
       if (ev && ev.status === "active") {
@@ -790,6 +862,31 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   const now = Date.now();
   device.risk = computeRisk(now);
+  // Object profile + AI expected speed — recomputed from real data only.
+  device.object = analyzeObject(device.ultra.series, now, device.motor ? device.motor.state === "OFF" : null, linkFresh(now));
+  device.aiSpeed = expectedSpeedKph({
+    linkOk: linkFresh(now),
+    distanceCm: device.distanceCm,
+    riskLevel: device.risk.level,
+    fogActive: fogActive(),
+  });
+  // AI advisory headline -> the truck's OLED via the same MSG path as admin
+  // messages. Sent only when the tone CHANGES (never spams the link) and only
+  // for stop/caution — "go" is the normal state, not a message.
+  const advice = buildAdvice(now);
+  if (advice.tone !== device.prevAdviceTone) {
+    if (
+      device.prevAdviceTone !== null &&
+      advice.tone !== "go" &&
+      linkFresh(now) &&
+      !(device.truckMessage && !device.truckMessage.delivered)
+    ) {
+      device.truckMessage = { text: `AI: ${advice.headline}`, at: now, delivered: false, source: "ai" };
+      raiseEvent("TRUCK_MESSAGE", "warning",
+        `${device.id} ← AI MESSAGE: "${advice.headline}"`, { message: advice.headline, source: "ai" }, true);
+    }
+    device.prevAdviceTone = advice.tone;
+  }
   tickEvents(now);
   broadcast();
 }, 500);

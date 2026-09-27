@@ -95,7 +95,7 @@ async function main() {
     port: SERVER_PORT,
     healthUrl: `http://localhost:${SERVER_PORT}/api/state`,
     cmd: "node",
-    args: ["index.js"],
+    args: ["ControlRoomServer.js"],
     cwd: path.join(ROOT, "server"),
   });
 
@@ -133,7 +133,7 @@ async function main() {
     else console.error("[mineguard] serial bridge: NOT running (no Arduino data will arrive)");
   } else {
     log("launching serial bridge (real Arduino over Bluetooth/USB)…");
-    spawnService("bridge", "node", ["bridge.js"], path.join(ROOT, "server"));
+    spawnService("bridge", "node", ["ArduinoBridge.js"], path.join(ROOT, "server"));
   }
 
   if (CHECK_ONLY) {

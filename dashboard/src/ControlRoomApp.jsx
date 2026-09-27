@@ -13,6 +13,10 @@
  * 31-100% = fog-dependent logic ON.
  */
 import { useEffect, useRef, useState } from "react";
+import MineBackdrop from "./components/MineBackdrop.jsx";
+import View360 from "./components/View360.jsx";
+import ObjectProfile from "./components/ObjectProfile.jsx";
+import DriveTrain from "./components/DriveTrain.jsx";
 
 // Viewer links work at any depth: "/view/…" locally, "/<repo>/view/…" on
 // GitHub Pages project sites.
@@ -365,6 +369,10 @@ export default function App() {
     send({ type: "setFogIntensity", value: v });
   };
 
+  // Drive command -> the bridge pushes "MOTOR FWD|REV <0-255>" / "MOTOR STOP"
+  // to the truck. The real motor state comes back in the firmware telemetry.
+  const onMotor = (dir, pwm) => send({ type: "setMotor", dir, pwm });
+
   // One-click copy of the PERMANENT read-only link (no dialogs — silent copy,
   // prompt only as fallback where the clipboard API is blocked)
   const shareLink = async () => {
@@ -416,6 +424,10 @@ export default function App() {
   const dist = linkOk ? device?.distanceCm ?? null : null;
   const cautionCm = state?.thresholds?.obstacleCautionCm ?? 40;
   const withinCaution = dist != null && dist <= cautionCm;
+  // New blocks: object profile (Distance.js), drivetrain, AI expected speed
+  const object = device?.object || null;
+  const vehicle = device?.vehicle || null;
+  const aiSpeed = device?.aiSpeed || null;
   // Buzzer state: reported value first; otherwise derived from the cab's own
   // reported obstacle state and LABELLED as derived (this sketch has no
   // separate buzzer field).
@@ -599,6 +611,23 @@ export default function App() {
                 fogIntensity={state.fogIntensity}
               />
 
+              {/* 360° view + object profile + drivetrain — all real-data only */}
+              <View360
+                distance={dist}
+                linkOk={linkOk}
+                caution={state.thresholds.obstacleCautionCm}
+                danger={state.thresholds.obstacleDangerCm}
+                obstacleState={device.obstacleState}
+              />
+              <ObjectProfile object={object} linkOk={linkOk} />
+              <DriveTrain
+                vehicle={vehicle}
+                aiSpeed={aiSpeed}
+                linkOk={linkOk}
+                onMotor={onMotor}
+                isViewer={IS_VIEWER}
+              />
+
               <div className="grid2">
                 <Card label="Speed" value={device.speedText} sub="no speed sensor on this rig" tone="warn" />
                 <Card label="TTC (time to collision)" value={device.ttcText} sub="requires speed + distance" tone="warn" />
@@ -681,9 +710,9 @@ export default function App() {
                 />
               </div>
 
-              {/* Emergency message -> real cab over Bluetooth/USB */}
+              {/* Emergency/AI message -> real cab over Bluetooth/USB -> OLED */}
               <div className="msg-controls">
-                <span className="muted">📨 Emergency message:</span>
+                <span className="muted">📨 Message to truck (shows on the OLED):</span>
                 <input
                   type="text"
                   maxLength={80}
@@ -699,6 +728,7 @@ export default function App() {
                     {device.truckMessage.delivered
                       ? `✓ delivered — "${device.truckMessage.text}"`
                       : `⏳ sending — "${device.truckMessage.text}" (waiting for the cab's receipt)`}
+                    {device.truckMessage.source === "ai" && <em> · from AI</em>}
                   </span>
                 )}
               </div>

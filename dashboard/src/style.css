@@ -1,3 +1,10 @@
+/* ===========================================================================
+   MineGuard / MineSafe 360* — global stylesheet (control-room theme).
+   Dark industrial palette, panel chrome, and every component style:
+   distance hero, ultrasonic strip, proximity simulation, 360° vehicle view,
+   object profile, drivetrain, AI advisory, fog panel, events, share links.
+   Mobile breakpoints: 980px / 760px / 480px.
+   =========================================================================== */
 :root {
   --bg: #0b0e13;
   --panel: #141922;
@@ -443,4 +450,117 @@ body {
 @media (max-width: 480px) {
   .ultra-grid { grid-template-columns: 1fr 1fr; }
   .btn { font-size: 12px; padding: 6px 9px; }
+}
+
+/* ===========================================================================
+   MINE BACKDROP — deep open-pit scene behind the sim / 360 views
+   =========================================================================== */
+.mine-backdrop { width: 100%; height: 100%; display: block; }
+
+/* ===========================================================================
+   360° VEHICLE VIEW
+   =========================================================================== */
+.v360 { margin: 10px 0 0; }
+.v360-modes { display: flex; gap: 6px; padding: 0 2px 8px; }
+.v360-stage {
+  position: relative; height: 300px; border-radius: 8px; overflow: hidden;
+  cursor: grab; touch-action: none; user-select: none;
+  border: 1px solid var(--line); background: #141821;
+}
+.v360-stage:active { cursor: grabbing; }
+.v360-world { position: absolute; inset: 0; transition: transform .25s ease-out; }
+.v360-ground { position: absolute; inset: 0; }
+.v360-compass {
+  position: absolute; font-size: 10px; letter-spacing: 1px; color: var(--muted);
+  background: rgba(10,13,20,.55); padding: 2px 6px; border-radius: 4px;
+}
+.v360-compass.n { top: 8px; left: 50%; transform: translateX(-50%); }
+.v360-compass.e { right: 8px; top: 50%; transform: translateY(-50%); }
+.v360-compass.s { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.v360-compass.w { left: 8px; top: 50%; transform: translateY(-50%); }
+.v360-rock {
+  position: absolute; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; z-index: 2;
+}
+.v360-truck {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 64px; z-index: 3; filter: drop-shadow(0 3px 6px rgba(0,0,0,.6));
+}
+.v360-beam {
+  position: absolute; left: 50%; bottom: 50%; width: 16px; transform: translateX(-50%);
+  background: linear-gradient(to top, rgba(64,156,255,.65), rgba(64,156,255,.04));
+  clip-path: polygon(50% 0, 100% 100%, 0 100%); z-index: 1;
+}
+.v360-nosensor {
+  position: absolute; font-size: 9px; letter-spacing: 1.5px; color: var(--muted);
+  background: rgba(10,13,20,.5); padding: 2px 5px; border-radius: 3px; z-index: 2;
+}
+.v360-nosensor.left { left: 8px; top: 50%; transform: translateY(-50%); }
+.v360-nosensor.right { right: 8px; top: 50%; transform: translateY(-50%); }
+.v360-nosensor.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.v360-snap { display: flex; align-items: center; gap: 6px; padding: 8px 2px 0; flex-wrap: wrap; }
+.v360-elev {
+  position: relative; height: 220px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--line);
+  background: linear-gradient(#232a3a 0%, #1a2030 55%, #141821 55%, #10141d 100%);
+}
+.v360-elev .mine-backdrop { position: absolute; left: 0; right: 0; bottom: 0; height: 42%; opacity: .8; }
+.v360-elev-svg { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); height: 78%; z-index: 2; filter: drop-shadow(0 4px 8px rgba(0,0,0,.55)); }
+.v360-elev-beam {
+  position: absolute; left: 20%; top: 56%; height: 10px; z-index: 1;
+  background: linear-gradient(90deg, rgba(64,156,255,.65), rgba(64,156,255,.05));
+  border-radius: 2px;
+}
+.v360-elev-beam span {
+  position: absolute; right: -6px; top: -18px; transform: translateX(100%);
+  font-size: 10px; color: var(--accent); white-space: nowrap;
+}
+/* sonar waves toward the viewer (front view) */
+.v360-waves {
+  position: absolute; left: 50%; top: 78%; transform: translateX(-50%);
+  text-align: center; z-index: 2;
+}
+.v360-waves i {
+  display: block; width: 34px; height: 8px; margin: 3px auto;
+  border: 2px solid rgba(64,208,255,.7); border-top: none; border-radius: 0 0 20px 20px;
+}
+.v360-waves i:nth-child(2) { width: 48px; opacity: .55; }
+.v360-waves i:nth-child(3) { width: 62px; opacity: .3; }
+.v360-waves span { display: block; font-size: 10px; color: var(--accent); margin-top: 4px; }
+.v360-foot { font-size: 11px; margin-top: 4px; }
+
+/* ===========================================================================
+   OBJECT PROFILE — length / width / breadth from the ultrasonic (honest N/A)
+   =========================================================================== */
+.obj-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; }
+.obj-cell { background: #171c28; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.obj-label { display: block; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.obj-value { display: block; font-size: 18px; margin-top: 3px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.obj-note { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+.obj-ok .obj-value { color: var(--ok); }
+.obj-warn .obj-value { color: var(--warn); }
+.obj-nd .obj-value { color: var(--muted); font-weight: 600; }
+
+/* ===========================================================================
+   DRIVETRAIN — motor · battery · vehicle speed · AI expected speed
+   =========================================================================== */
+.drive-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+.drive-cell { background: #171c28; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.drive-btns { display: flex; gap: 6px; margin: 6px 0; }
+.drive-throttle { width: 100%; margin: 2px 0; }
+.drive-state { display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap; }
+.drive-state b { display: block; font-size: 15px; margin-top: 2px; }
+.ai-speed .obj-value { font-size: 24px; }
+.ai-go .obj-value { color: var(--ok); }
+.ai-caution .obj-value { color: var(--warn); }
+.ai-stop .obj-value { color: var(--bad); }
+
+@media (max-width: 760px) {
+  .obj-grid { grid-template-columns: repeat(2, 1fr); }
+  .drive-grid { grid-template-columns: 1fr; }
+  .v360-stage { height: 240px; }
+  .v360-elev { height: 180px; }
+}
+@media (max-width: 480px) {
+  .obj-grid { grid-template-columns: 1fr; }
 }

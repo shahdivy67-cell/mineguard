@@ -1,6 +1,6 @@
 /**
  * MineGuard ACCESS suite — read-only share links on the real-data server.
- *   node viewcheck.js       (server up on :4000)
+ *   node ShareLinkCheck.js   (server up on :4000)
  *
  * Proves:
  *   1. the server itself serves the dashboard (single-port mode)
@@ -123,6 +123,7 @@ async function main() {
     { type: "setFogIntensity", value: 65 },
     { type: "setFog", on: true, intensity: 65 }, // legacy sim-era command
     { type: "truckMessage", vehicleId: "MG-01", text: "viewer should not be able to send this" },
+    { type: "setMotor", dir: "FWD", pwm: 200 }, // drive command — viewers must not drive
     { type: "ack", eventId: "EV-x" },
     { type: "sim", vehicleId: "MG-01", action: "resume" }, // simulator is gone
     { type: "addObstacle" }, // no obstacles are generated any more
@@ -186,7 +187,7 @@ async function main() {
   // --- 5. telemetry endpoint robustness (NO state side effects here) -------
   // Malformed body -> 400; the server must not crash and must not change the
   // device state. (A loopback caller with valid JSON is the serial bridge —
-  // remote callers are refused by the isLoopback() guard in index.js.)
+  // remote callers are refused by the isLoopback() guard in ControlRoomServer.js.)
   const rawPost = await new Promise((resolve, reject) => {
     const req = http.request(
       `${BASE}/telemetry`,
@@ -208,7 +209,7 @@ async function main() {
   const wrongPath = await post(`${BASE}/no-such-endpoint`, {});
   check("unknown endpoints -> 404", wrongPath.status === 404, `status=${wrongPath.status}`);
 
-  console.log(`\nviewcheck: ${pass} passed, ${fail} failed`);
+  console.log(`\nShareLinkCheck: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
 

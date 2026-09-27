@@ -1,4 +1,8 @@
-# Publishes the dashboard to GitHub Pages (always-online, view-only link).
+# Publishes the dashboard to GitHub Pages (always-online).
+# - root URL  -> redirects to the UNINTERACTABLE view-only link
+# - /view/<token>  -> read-only dashboard (real file, HTTP 200)
+# - /control/<secret> -> interactive control room (path from the CONTROL_PATH
+#   repo secret; read-only everywhere else)
 # The static page shows honest "No data / Disconnected" unless VITE_API_BASE
 # is provided at build time pointing at a real MineGuard server — this repo
 # never fabricates readings.

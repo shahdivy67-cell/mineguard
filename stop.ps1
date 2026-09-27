@@ -1,5 +1,5 @@
-# Stops MineGuard: launcher (start.js), serial bridge (bridge.js),
-# server (4000) and dashboard (5173).
+# Stops MineGuard: launcher (start.js), serial bridge (ArduinoBridge.js),
+# server (ControlRoomServer.js on :4000) and dashboard (5173).
 # Called by stop.bat; can also be run directly:  powershell -File stop.ps1
 $killed = @()
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
@@ -9,7 +9,7 @@ Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
     $killed += 'launcher'
   }
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-  Where-Object { $_.CommandLine -like '*bridge.js*' } |
+  Where-Object { $_.CommandLine -like '*ArduinoBridge.js*' } |
   ForEach-Object {
     Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
     $killed += 'bridge'

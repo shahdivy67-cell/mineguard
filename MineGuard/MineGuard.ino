@@ -30,6 +30,17 @@
  *                  dashboard shows what the cab is actually doing. The
  *                  Arduino sends NO speed — there is no speed sensor — and
  *                  the dashboard therefore shows "N/A — No speed sensor".
+ *  12. OLED screen : SSD1306 128x64 I2C (A4/A5) shows distance, risk, fog,
+ *                  motor, battery and incoming MSG text. If no OLED answers
+ *                  on I2C the firmware degrades silently (no screen, all
+ *                  functions identical).
+ *  13. Motor drive : control room sends "MOTOR FWD|REV <0-255>" / "MOTOR STOP"
+ *                  -> ENA PWM on D11, direction on D12/D8 (L298N/DRV8833
+ *                  style driver — wiring assumption, see below). The REAL
+ *                  motor state is reported back in telemetry ("motor"/"PWM").
+ *  14. Battery     : pack voltage on A0 through an assumed 1:1 resistor
+ *                  divider (two equal resistors) -> "batteryV" in telemetry.
+ *                  The dashboard maps it to a 2S LiPo percentage.
  *
  * Everything is NON-BLOCKING (millis()-driven): alarms keep their rhythm
  * while ranging and telemetry continue. Missing hardware degrades gracefully:
@@ -48,12 +59,22 @@
  *                  works over the Bluetooth COM port identically.
  *   (MPU6050 is OPTIONAL and not currently fitted: SDA -> A4, SCL -> A5.
  *    With no IMU the firmware reports "imu":0 and never claims tilt/accel.)
+ *   OLED (optional, not wired yet): SSD1306 I2C — SDA -> A4, SCL -> A5
+ *    (same I2C bus as the MPU6050; different address 0x3C). No ACK = no
+ *    screen — everything else keeps working.
+ *   Motor driver (new hardware): ENA -> D11 (PWM), IN1 -> D12, IN2 -> D8
+ *    (typical L298N/DRV8833 wiring — ASSUMPTION until confirmed on the rig).
+ *    Boot state is always STOP; an unknown command also means STOP.
+ *   Battery: pack -> 1:1 divider -> A0 (assumption: two equal resistors,
+ *    e.g. 100k/100k, so up to ~10 V is measurable on the 5 V ADC).
  *
  * SERIAL PROTOCOL (57600 baud, newline delimited — both directions)
  *   Arduino -> laptop : {"vehicleId":"MG-01","obstacleDistance":73,...}
  *   laptop  -> Arduino : FOG <0-100> | ALERT <0|1|2> | ESTOP <0|1> | MSG <text> | ACK
+ *                      | MOTOR FWD|REV <0-255> | MOTOR STOP
  *
- * FLASHING: no libraries needed beyond the built-in Wire library.
+ * FLASHING: no libraries needed beyond the built-in Wire library (the OLED
+ * driver Ssd1306Display.h is header-only and ships in this folder).
  *   Arduino IDE -> select your board + port -> Open arduino/MineGuard.ino -> Upload
  *
  * Prototype thresholds only — NOT real mine-safety limits.
@@ -61,6 +82,7 @@
 
 #include <Wire.h>
 #include <SoftwareSerial.h>
+#include "Ssd1306Display.h"
 
 /* ------------------------------- pins ---------------------------------- */
 const uint8_t TRIG_PIN   = 9;
@@ -82,6 +104,16 @@ const uint8_t TRAF_RED_PIN    = 6;
 const uint8_t BT_RX_PIN = 2; // Arduino RX <-  HC-05 TX
 const uint8_t BT_TX_PIN = 3; // Arduino TX  ->  HC-05 RX (use 1k/2k divider!)
 SoftwareSerial btSerial(BT_RX_PIN, BT_TX_PIN);
+
+// Motor driver (new hardware): ENA = PWM speed, IN1/IN2 = direction.
+// Wiring assumption (typical L298N/DRV8833): ENA->D11, IN1->D12, IN2->D8.
+const uint8_t MOTOR_ENA_PIN = 11;
+const uint8_t MOTOR_IN1_PIN = 12;
+const uint8_t MOTOR_IN2_PIN = 8;
+
+// Battery pack voltage on A0 through an assumed 1:1 divider (two equal
+// resistors) -> up to ~10 V measurable on the 5 V ADC.
+const uint8_t BATTERY_PIN = A0;
 
 /* ---------------------------- constants -------------------------------- */
 const char*          VEHICLE_ID   = "MG-01";
@@ -111,6 +143,16 @@ String   msgText;             // last emergency message from the control room
 bool     msgPending = false;  // its alarm is still showing
 unsigned long msgAt = 0;
 uint16_t msgCount = 0;        // receipt: rises with every MSG received
+
+// Motor + battery (new hardware) — real states, reported in telemetry.
+uint8_t  motorPwm  = 0;       // 0-255 commanded PWM
+bool     motorFwd  = true;    // direction flag
+bool     motorOn   = false;   // false = STOP (boot state — safety first)
+float    batteryV  = 0;       // pack volts from the ADC (0 = not read yet)
+
+Ssd1306 oled;                 // cab display (absent OLED = silently unused)
+unsigned long oledAt = 0;     // last OLED refresh
+unsigned long msgScreenUntil = 0; // show the MSG screen until this time
 
 unsigned long lastRange = 0;
 unsigned long lastTele  = 0;
@@ -318,6 +360,7 @@ void handleCommand(String s) {
     msgPending = true;
     msgAt = millis();
     msgCount++;
+    msgScreenUntil = millis() + 8000; // OLED shows the message for 8 s
     // The cab has no screen of its own — the laptop Serial Monitor IS the
     // display, so the text prints on both links for whoever sits in the cab.
     Serial.print(F("MSG FROM CONTROL ROOM: "));
@@ -326,6 +369,31 @@ void handleCommand(String s) {
     btSerial.println(msgText);
   } else if (s == "ACK") {
     crashLatched = false;   // operator acknowledged — silence the SOS
+  } else if (s.startsWith("MOTOR ")) {
+    // Drive command for the toy truck's motor. Boot/unknown => STOP.
+    String rest = s.substring(6);
+    rest.trim();
+    if (rest.startsWith("FWD")) {
+      motorPwm = (uint8_t)constrain(rest.substring(3).toInt(), 0, 255);
+      motorFwd = true;
+      motorOn = motorPwm > 0;
+    } else if (rest.startsWith("REV")) {
+      motorPwm = (uint8_t)constrain(rest.substring(3).toInt(), 0, 255);
+      motorFwd = false;
+      motorOn = motorPwm > 0;
+    } else {
+      motorOn = false;      // "MOTOR STOP" (or anything unrecognised)
+      motorPwm = 0;
+    }
+    if (motorOn) {
+      digitalWrite(MOTOR_IN1_PIN, motorFwd ? HIGH : LOW);
+      digitalWrite(MOTOR_IN2_PIN, motorFwd ? LOW : HIGH);
+      analogWrite(MOTOR_ENA_PIN, motorPwm);
+    } else {
+      digitalWrite(MOTOR_IN1_PIN, LOW);
+      digitalWrite(MOTOR_IN2_PIN, LOW);
+      analogWrite(MOTOR_ENA_PIN, 0);
+    }
   }
 }
 
@@ -385,9 +453,61 @@ void emitTelemetry() {
   emitP(patternLen > 0 ? 1 : 0);           // actively sounding this instant
   emitP(F(",\"msgCount\":"));
   emitP(msgCount); // delivery receipts for control-room messages
+  emitP(F(",\"motor\":\""));
+  emitP(motorOn ? (motorFwd ? "FWD" : "REV") : "OFF"); // real motor state
+  emitP(F("\",\"motorPwm\":"));
+  emitP(motorPwm);
+  emitP(F(",\"batteryV\":"));
+  emitP(batteryV, 2); // real pack volts from the ADC
   emitP(F(",\"uptime\":"));
   emitP(millis() / 1000);
   emitPL('}');
+}
+
+/* --------------------------- OLED cab screen --------------------------- */
+/* Refreshes the SSD1306 at 4 Hz. Three screens: boot (first 2.5 s), the
+ * incoming MSG text (8 s after it arrives — from the admin or the AI), and
+ * the status screen (real values only: distance, risk, fog, motor, battery).
+ * AVR printf has no %f — floats go through dtostrf. */
+void serviceOled() {
+  if (!oled.ok) return; // no OLED fitted — everything else keeps working
+  unsigned long now = millis();
+  if (now - oledAt < 250) return;
+  oledAt = now;
+  oled.clear();
+  char line[22];
+  if (now < 2500) {
+    oled.text(1, "Minesafe 360*");
+    oled.text(3, "SIH26007");
+    oled.text(5, "MineGuard truck");
+  } else if (now < msgScreenUntil && msgText.length() > 0) {
+    oled.text(0, "MSG FROM CONTROL:");
+    oled.text(2, msgText.substring(0, 21).c_str());
+    if (msgText.length() > 21) oled.text(3, msgText.substring(21, 42).c_str());
+  } else {
+    if (distanceCm >= 400) snprintf(line, sizeof(line), "DIST   NO ECHO");
+    else snprintf(line, sizeof(line), "DIST   %d CM", (int)distanceCm);
+    oled.text(0, line);
+    const char* risk = "CLEAR";
+    if (playedMode == A_CAUTION) risk = "CAUTION";
+    else if (playedMode != A_SILENT) risk = "DANGER";
+    snprintf(line, sizeof(line), "RISK   %s", risk);
+    oled.text(1, line);
+    snprintf(line, sizeof(line), "FOG    %d%%", fogIntensity);
+    oled.text(2, line);
+    snprintf(line, sizeof(line), "MOT    %s", motorOn ? (motorFwd ? "FWD" : "REV") : "OFF");
+    oled.text(3, line);
+    snprintf(line, sizeof(line), "PWM    %d", motorPwm);
+    oled.text(4, line);
+    if (batteryV > 0) {
+      char vbuf[7];
+      dtostrf(batteryV, 4, 2, vbuf);
+      snprintf(line, sizeof(line), "BAT    %sV", vbuf);
+      oled.text(5, line);
+    } else {
+      oled.text(5, "BAT    --");
+    }
+  }
 }
 
 /* ------------------------------ setup/loop ------------------------------ */
@@ -401,6 +521,14 @@ void setup() {
   pinMode(TRAF_GREEN_PIN, OUTPUT);
   pinMode(TRAF_YELLOW_PIN, OUTPUT);
   pinMode(TRAF_RED_PIN, OUTPUT);
+  pinMode(MOTOR_ENA_PIN, OUTPUT);
+  pinMode(MOTOR_IN1_PIN, OUTPUT);
+  pinMode(MOTOR_IN2_PIN, OUTPUT);
+  pinMode(BATTERY_PIN, INPUT);
+  motorOn = false; // boot state = STOP (safety)
+  digitalWrite(MOTOR_IN1_PIN, LOW);
+  digitalWrite(MOTOR_IN2_PIN, LOW);
+  analogWrite(MOTOR_ENA_PIN, 0);
   digitalWrite(LED_PIN, LOW);
   digitalWrite(TRAF_GREEN_PIN, HIGH);  // boot state = SAFE until told otherwise
   digitalWrite(TRAF_YELLOW_PIN, LOW);
@@ -411,6 +539,8 @@ void setup() {
   Wire.write(0x6B);
   Wire.write(0);                     // wake MPU6050 from sleep
   imuOk = (Wire.endTransmission(true) == 0);
+
+  oled.begin(); // SSD1306 on I2C — false result = no screen, keep working
 
   // startup chirp so you know the vehicle side is alive
   tone(BUZZER_PIN, 1200, 80);
@@ -436,6 +566,7 @@ void loop() {
   if (now - lastRange >= RANGE_MS) {
     lastRange = now;
     distanceCm = readDistanceMedian();
+    batteryV = analogRead(BATTERY_PIN) * (5.0 / 1023.0) * 2.0; // 1:1 divider
     readImu();
     detectCrash();
   }
@@ -443,6 +574,7 @@ void loop() {
   serviceAlarm();
   serviceTrafficLight();
   serviceLed();
+  serviceOled();
 
   if (now - lastTele >= TELEMETRY_MS) {
     lastTele = now;
