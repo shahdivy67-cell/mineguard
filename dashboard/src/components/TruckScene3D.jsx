@@ -170,7 +170,7 @@ function buildMine(scene) {
 
   // hanging lanterns from the ceiling (warm glow, gentle sway)
   const lanternMat = new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffb45e, emissiveIntensity: 1.6 });
-  this.lanterns = [];
+  const lanterns = [];
   for (const x of [-14, 0, 14]) {
     const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.6, 6), tieMat);
     chain.position.set(x, 11.2, 0);
@@ -178,7 +178,7 @@ function buildMine(scene) {
     bulb.position.set(x, 10.35, 0);
     bulb.userData.bx = x;
     mine.add(chain, bulb);
-    this.lanterns.push(bulb);
+    lanterns.push(bulb);
   }
 
   // cavern walls + ceiling (the camera sits inside the tunnel)
@@ -214,6 +214,7 @@ function buildMine(scene) {
   }
 
   scene.add(mine);
+  scene.userData.lanterns = lanterns;
   return mine;
 }
 
@@ -245,6 +246,7 @@ export class TruckScene {
     this.scene.add(lamp);
 
     buildMine(this.scene);
+    this.lanterns = this.scene.userData.lanterns;
 
     // the truck
     this.truck = buildTruck();
