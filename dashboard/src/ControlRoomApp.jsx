@@ -531,7 +531,7 @@ export default function App() {
                 danger={state?.thresholds?.obstacleDangerCm ?? 15}
                 obstacleState={device.obstacleState}
                 fogActive={fogActive}
-                fogIntensity={state.fogIntensity}
+                fogIntensity={state?.fogIntensity ?? 0}
               />
               <ObjectProfile object={object} linkOk={linkOk} />
               <DriveTrain
@@ -586,8 +586,8 @@ export default function App() {
                 />
                 <Card
                   label="Fog intensity (PC control)"
-                  value={`${state.fogIntensity}%`}
-                  sub={fogActive ? `fog-dependent logic ON (> ${state.fogGatePct}%)` : `fog-dependent logic OFF (≤ ${state.fogGatePct}%)`}
+                  value={`${state?.fogIntensity ?? 0}%`}
+                  sub={fogActive ? `fog-dependent logic ON (> ${state?.fogGatePct ?? 30}%)` : `fog-dependent logic OFF (≤ ${state?.fogGatePct ?? 30}%)`}
                   tone={fogActive ? "warn" : "ok"}
                 />
                 <Card
@@ -658,15 +658,15 @@ export default function App() {
                 </div>
                 <div className="fog-meter">
                   <div className="fog-meter-value">
-                    {state.fogIntensity}<span className="pct">%</span>
-                    <em>{fogActive ? `FOG-DEPENDENT LOGIC ACTIVE (> ${state.fogGatePct}%)` : `FOG LOGIC OFF (0–${state.fogGatePct}%)`}</em>
+                    {state?.fogIntensity ?? 0}<span className="pct">%</span>
+                    <em>{fogActive ? `FOG-DEPENDENT LOGIC ACTIVE (> ${state?.fogGatePct ?? 30}%)` : `FOG LOGIC OFF (0–${state?.fogGatePct ?? 30}%)`}</em>
                   </div>
                   <div className="meter">
-                    <div className="meter-fill" style={{ width: `${state.fogIntensity}%` }} />
-                    <div className="meter-needle" style={{ left: `${state.fogIntensity}%` }} />
+                    <div className="meter-fill" style={{ width: `${state?.fogIntensity ?? 0}%` }} />
+                    <div className="meter-needle" style={{ left: `${state?.fogIntensity ?? 0}%` }} />
                   </div>
                   <div className="meter-scale">
-                    <span>0</span><span>{state.fogGatePct} gate</span><span>100</span>
+                    <span>0</span><span>{state?.fogGatePct ?? 30} gate</span><span>100</span>
                   </div>
                 </div>
                 {!IS_VIEWER && (
@@ -706,9 +706,9 @@ export default function App() {
                 ALERTS (real observations)
                 {activeEvents.length > 0 && <span className="pill pill-bad">{activeEvents.length} ACTIVE</span>}
               </div>
-              {state.events.length === 0 && <div className="muted pad">No events yet</div>}
+              {(state?.events || []).length === 0 && <div className="muted pad">No events yet</div>}
               <ul className="events">
-                {state.events.map((ev) => (
+                {(state?.events || []).map((ev) => (
                   <li key={ev.id} className={`ev-${ev.severity} ev-${ev.status}`}>
                     <div className="ev-main">
                       <b>{ev.type.replaceAll("_", " ")}</b> · {ev.message}
