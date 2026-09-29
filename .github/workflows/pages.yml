@@ -61,7 +61,7 @@ jobs:
           cat > dist/index.html <<'EOF'
           <!doctype html>
           <meta charset="utf-8">
-          <title>MineSafe 360* — MineGuard Control Room</title>
+          <title>MineGuard 360* — Control Room</title>
           <script>location.replace("./view/BRVmiLzctt5y/");</script>
           <noscript>Open <a href="./view/BRVmiLzctt5y/">the read-only dashboard</a>.</noscript>
           EOF
