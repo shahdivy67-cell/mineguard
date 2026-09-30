@@ -368,7 +368,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">⛏</span> MineGuard 360* <span className="muted">MINEGUARD CONTROL ROOM</span>
+          <span className="logo">⛏</span> MineGuard <span className="muted">MINEGUARD CONTROL ROOM</span>
         </div>
         <div className="topbar-right">
           <span className={`pill ${fogActive ? "pill-fog" : ""}`}>

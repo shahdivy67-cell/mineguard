@@ -113,7 +113,7 @@ The bridge **never** sends speed or position — the rig measures neither.
 
 | panel | source |
 |---|---|
-| **Team brand: MineGuard 360\*** (title bar + page title) | static |
+| **Team brand: MineGuard** (title bar + page title) | static |
 | **AI ACTION ADVISORY — what the truck should do** (STOP / SLOW DOWN / PROCEED + steps) | generated **only** from real link state, real distance and the fog gate |
 | Arduino / Bluetooth status (CONNECTED · DISCONNECTED, port, baud, age) | telemetry freshness + bridge heartbeat |
 | Real ultrasonic distance (cm / m) or **No data** | `Distance:` line |

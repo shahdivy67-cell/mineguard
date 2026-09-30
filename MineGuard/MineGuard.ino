@@ -477,7 +477,7 @@ void serviceOled() {
   oled.clear();
   char line[22];
   if (now < 2500) {
-    oled.text(1, "MineGuard 360*");
+    oled.text(1, "MineGuard");
     oled.text(3, "SIH26007");
     oled.text(5, "MineGuard truck");
   } else if (now < msgScreenUntil && msgText.length() > 0) {
